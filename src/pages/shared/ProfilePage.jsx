@@ -22,6 +22,7 @@ const emptyFamily = { spouse: { ...emptyMember }, father: { ...emptyMember }, mo
 
 function buildForm(user) {
   return {
+    name:                  user.name                  || "",
     contact:               user.contact               || "",
     position:              user.position              || "",
     department:            user.department            || "",
@@ -237,6 +238,7 @@ export default function ProfilePage() {
           {!editing ? (
             <div className="profile-info-grid">
               {[
+                ["Full Name",               user.name || "–"],
                 ["Email Address",          user.email],
                 ["Contact Number",         user.contact || "–"],
                 ["Gender",                 user.gender || "–"],
@@ -255,6 +257,9 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="form-grid">
+              <Field label="Full Name">
+                <input className="form-input" value={form.name} onChange={e => set("name", e.target.value)} />
+              </Field>
               <Field label="Contact Number">
                 <input className="form-input" value={form.contact} onChange={e => set("contact", e.target.value)} />
               </Field>
