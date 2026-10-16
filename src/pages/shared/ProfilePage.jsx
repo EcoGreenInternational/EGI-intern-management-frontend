@@ -177,7 +177,7 @@ export default function ProfilePage() {
                 <p style={{ fontSize: 13, color: "var(--gray-500)", marginTop: 2 }}>{user.department}</p>
                 <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
                   <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <LeafIcon size={13} color="var(--egi-green)" /> Eco Green International
+                    🏛️ House of Cambridge
                   </span>
                   <span className="chip">{user.role === "intern" ? "Intern Trainee" : roleLabel}</span>
                   {user.profilePicture && (

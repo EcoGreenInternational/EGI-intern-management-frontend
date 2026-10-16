@@ -43,12 +43,11 @@ const SUPERVISOR_NAV_SENIOR = [
   { key: "tasks",       label: "All Tasks"     },
   { key: "mytasks",     label: "My Tasks"      },
     { key: "profile",     label: "My Profile"    },   
-  { key: "interns",     label: "Interns"       },
-  { key: "supervisors", label: "Supervisors"   },
+  { key: "supervisors", label: "Staff Profile" },
   { key: "projects",    label: "Projects"      },
   
   { key: "schedule",    label: "Schedule"      },
-  { key: "social",      label: "Post Approval" },
+  { key: "social",      label: "Social Media"  },
   { key: "content",     label: "Content Cal."  },
   { key: "files",       label: "Files"         },
   // ── NEW: renewals nav item (senior) ────────────────────────────────────
@@ -57,18 +56,18 @@ const SUPERVISOR_NAV_SENIOR = [
 ];
 
 const SUPERVISOR_NAV_JUNIOR = [
-  { key: "diary",     label: "My Diary"      }, 
-  { key: "dashboard", label: "Dashboard"     },
-  { key: "tasks",     label: "All Tasks"     },
-  { key: "mytasks",   label: "My Tasks"      },
+  { key: "diary",       label: "My Diary"      }, 
+  { key: "dashboard",   label: "Dashboard"     },
+  { key: "tasks",       label: "All Tasks"     },
+  { key: "mytasks",     label: "My Tasks"      },
     { key: "profile",     label: "My Profile"    },   
-  { key: "interns",   label: "Interns"       },
-  { key: "projects",  label: "Projects"      },
+  { key: "supervisors", label: "Staff Profile" },
+  { key: "projects",    label: "Projects"      },
  
-  { key: "schedule",  label: "Schedule"      },
-  { key: "social",    label: "Post Approval" },
-  { key: "content",   label: "Content Cal."  },
-  { key: "files",     label: "Files"         },
+  { key: "schedule",    label: "Schedule"      },
+  { key: "social",      label: "Social Media"  },
+  { key: "content",     label: "Content Cal."  },
+  { key: "files",       label: "Files"         },
   
 ];
 
@@ -186,24 +185,28 @@ export function Sidebar({ page, setPage }) {
       }}>
 
         {/* Brand */}
-        <div style={{ padding: "24px 22px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ padding: "22px 20px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
-              width: 42, height: 42,
+              width: 44, height: 44,
               borderRadius: 10,
+              background: "#ffffff",
+              padding: 2,
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
+              overflow: "hidden",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
             }}>
-              <img src={egiLogo} alt="EGI Logo"
+              <img src={egiLogo} alt="Company Logo"
                 style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
             </div>
             <div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 800, fontSize: 15, color: "#ffffff", letterSpacing: 1.2, lineHeight: 1.15 }}>
-                ECO GREEN
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 800, fontSize: 13, color: "#ffffff", letterSpacing: 0.8, lineHeight: 1.15 }}>
+                HOUSE OF CAMBRIDGE
               </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9.5, color: "rgba(255,255,255,0.6)", letterSpacing: 2, textTransform: "uppercase", marginTop: 2 }}>
-                INTERNATIONAL
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, color: "rgba(255,255,255,0.6)", letterSpacing: 1.5, textTransform: "uppercase", marginTop: 2 }}>
+                STAFF PORTAL
               </div>
             </div>
           </div>
@@ -362,7 +365,7 @@ export function Topbar({ page }) {
           <input
             type="text"
             className="egi-topbar-search-input"
-            placeholder="Search interns, tasks, or projects..."
+            placeholder="Search staff, tasks, or projects..."
           />
         </div>
 

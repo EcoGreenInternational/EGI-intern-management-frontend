@@ -9,6 +9,7 @@ const MeetingModal = ({ meeting, users, onSave, onClose }) => {
   const [form, setForm] = useState({
     title: '', description: '', date: '', startTime: '', endTime: '',
     location: 'Online', meetingLink: '', participants: [], notes: '',
+    status: 'scheduled',
   });
 
   useEffect(() => {
@@ -17,6 +18,7 @@ const MeetingModal = ({ meeting, users, onSave, onClose }) => {
         ...meeting,
         date: meeting.date ? new Date(meeting.date).toISOString().split('T')[0] : '',
         participants: meeting.participants?.map(p => p._id || p) || [],
+        status: meeting.status || 'scheduled',
       });
     }
   }, [meeting]);
@@ -46,9 +48,21 @@ const MeetingModal = ({ meeting, users, onSave, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#555' }}>Title *</label>
-            <input style={inputStyle} value={form.title} onChange={e => set('title', e.target.value)} required placeholder="Meeting title" />
+          <div style={{ display: 'grid', gridTemplateColumns: meeting ? '2fr 1fr' : '1fr', gap: 10, marginBottom: 14 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555' }}>Title *</label>
+              <input style={inputStyle} value={form.title} onChange={e => set('title', e.target.value)} required placeholder="Meeting title" />
+            </div>
+            {meeting && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555' }}>Status</label>
+                <select style={{ ...inputStyle, background: '#fff' }} value={form.status} onChange={e => set('status', e.target.value)}>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>

@@ -89,21 +89,30 @@ const CalendarView = ({ meetings = [], onDayClick }) => {
                   </div>
 
                   {/* Meeting pills — max 2 visible */}
-                  {dayMeetings.slice(0, 2).map((m, idx) => (
-                    <div key={idx} style={{
-                      background: '#e1f5ee',
-                      color: '#0F6E56',
-                      fontSize: 10,
-                      padding: '2px 5px',
-                      borderRadius: 4,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      marginBottom: 2,
-                    }}>
-                      {m.title}
-                    </div>
-                  ))}
+                  {dayMeetings.slice(0, 2).map((m, idx) => {
+                    const isCancelled = m.status === 'cancelled';
+                    const isCompleted = m.status === 'completed';
+                    const pillBg = isCancelled ? '#fee2e2' : isCompleted ? '#dcfce7' : '#dbeafe';
+                    const pillColor = isCancelled ? '#991b1b' : isCompleted ? '#166534' : '#1d4ed8';
+
+                    return (
+                      <div key={idx} style={{
+                        background: pillBg,
+                        color: pillColor,
+                        textDecoration: isCancelled ? 'line-through' : 'none',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: '2px 5px',
+                        borderRadius: 4,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginBottom: 2,
+                      }}>
+                        {m.title}
+                      </div>
+                    );
+                  })}
 
                   {dayMeetings.length > 2 && (
                     <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>

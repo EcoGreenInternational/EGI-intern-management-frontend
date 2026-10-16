@@ -27,6 +27,7 @@ export default function SupervisorSchedulePage() {
   const [editMeeting, setEditMeeting] = useState(null);
   const [selected,   setSelected]   = useState(null);
   const [detail,     setDetail]     = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,73 +194,145 @@ export default function SupervisorSchedulePage() {
             </div>
             {selected.meetings.length === 0 ? (
               <p style={{ color:'#9ca3af', fontSize:13 }}>No meetings. <button onClick={() => { setSelected(null); setShowModal(true); }} style={{ color:'#1D9E75', background:'none', border:'none', cursor:'pointer', fontWeight:600, fontFamily:'inherit' }}>Schedule one?</button></p>
-            ) : selected.meetings.map(m => (
-              <div key={m._id}
-                onClick={() => { setDetail(m); setSelected(null); }}
-                style={{ padding:'10px 14px', borderRadius:8, border:'1px solid #e5e7eb', marginBottom:8, cursor:'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background='#f9fafb'}
-                onMouseLeave={e => e.currentTarget.style.background='#fff'}
-              >
-                <div style={{ fontWeight:600, fontSize:13 }}>{m.title}</div>
-                <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>{m.startTime} – {m.endTime}</div>
-              </div>
-            ))}
+            ) : selected.meetings.map(m => {
+              const sc = STATUS_COLORS[m.status] || STATUS_COLORS.scheduled;
+              return (
+                <div key={m._id}
+                  onClick={() => { setDetail(m); setSelected(null); }}
+                  style={{ padding:'10px 14px', borderRadius:8, border:'1px solid #e5e7eb', marginBottom:8, cursor:'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.background='#f9fafb'}
+                  onMouseLeave={e => e.currentTarget.style.background='#fff'}
+                >
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ fontWeight:600, fontSize:13 }}>{m.title}</div>
+                    <span style={{ ...sc, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600, whiteSpace:'nowrap' }}>{m.status}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>{m.startTime} – {m.endTime}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:20 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <div>
+          <h2 style={{ fontFamily: "Syne,sans-serif", fontSize: 20, fontWeight: 800, color: "var(--green-900)", margin: 0 }}>
+            📅 Schedule & Meetings
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--gray-400)", marginTop: 4, margin: 0 }}>
+            Organize meetings, reviews, and syncs across teams
+          </p>
+        </div>
         <button className="btn btn-primary" onClick={() => { setEditMeeting(null); setShowModal(true); }}>
           + Schedule Meeting
         </button>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:24 }}>
-        {loading ? (
-          <div style={{ padding:60, textAlign:'center' }}><div className="spinner" style={{ margin:'0 auto' }}/></div>
-        ) : (
-          <CalendarView
-            meetings={meetings}
-            onDayClick={(day, dayMeetings) => setSelected({ day, meetings: dayMeetings })}
-          />
-        )}
+      {(() => {
+        const filteredMeetings = statusFilter === 'all'
+          ? meetings
+          : meetings.filter(m => m.status === statusFilter);
 
-        <div>
-          <div className="card" style={{ marginBottom:16 }}>
-            <div className="card-header"><div className="card-title">Upcoming (7 days)</div></div>
-            {upcoming.length === 0 ? (
-              <div style={{ padding:'16px 20px', color:'#9ca3af', fontSize:13 }}>None in next 7 days.</div>
-            ) : upcoming.map(m => {
-              const sc = STATUS_COLORS[m.status] || STATUS_COLORS.scheduled;
-              return (
-                <div key={m._id}
-                  onClick={() => setDetail(m)}
-                  style={{ padding:'12px 20px', borderBottom:'1px solid #f9fafb', cursor:'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.background='#f9fafb'}
-                  onMouseLeave={e => e.currentTarget.style.background='#fff'}
-                >
-                  <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
-                    <div style={{ fontWeight:600, fontSize:13 }}>{m.title}</div>
-                    <span style={{ ...sc, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600, whiteSpace:'nowrap' }}>{m.status}</span>
+        return (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 310px', gap:24 }}>
+            {loading ? (
+              <div style={{ padding:60, textAlign:'center' }}><div className="spinner" style={{ margin:'0 auto' }}/></div>
+            ) : (
+              <CalendarView
+                meetings={filteredMeetings}
+                onDayClick={(day, dayMeetings) => setSelected({ day, meetings: dayMeetings })}
+              />
+            )}
+
+            <div>
+              {/* Meeting List: Upcoming when 'all' or filtered list when specific status selected */}
+              <div className="card" style={{ marginBottom:16 }}>
+                <div className="card-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div className="card-title" style={{ fontSize: 13 }}>
+                    {statusFilter === 'all' ? 'Upcoming (7 days)' : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Meetings (${filteredMeetings.length})`}
                   </div>
-                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:3 }}>{formatDate(m.date)} · {m.startTime}</div>
+                  {statusFilter !== 'all' && (
+                    <button
+                      onClick={() => setStatusFilter('all')}
+                      style={{ background:'none', border:'none', fontSize:11, color:'#10b981', fontWeight:700, cursor:'pointer' }}
+                    >
+                      Show Upcoming
+                    </button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
 
-          <div className="card">
-            <div className="card-body">
-              {[['All',meetings.length,'#f3f4f6','#374151'],['Scheduled',meetings.filter(m=>m.status==='scheduled').length,'#dbeafe','#1d4ed8'],['Completed',meetings.filter(m=>m.status==='completed').length,'#dcfce7','#166534'],['Cancelled',meetings.filter(m=>m.status==='cancelled').length,'#fee2e2','#991b1b']].map(([l,n,bg,c]) => (
-                <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #f9fafb' }}>
-                  <span style={{ fontSize:13, color:'#6b7280' }}>{l}</span>
-                  <span style={{ fontSize:13, fontWeight:700, background:bg, color:c, padding:'1px 10px', borderRadius:20 }}>{n}</span>
+                <div style={{ maxHeight: 290, overflowY: 'auto' }}>
+                  {(statusFilter === 'all' ? upcoming : filteredMeetings).length === 0 ? (
+                    <div style={{ padding:'18px 20px', color:'#9ca3af', fontSize:13 }}>
+                      {statusFilter === 'all' ? 'None in next 7 days.' : `No ${statusFilter} meetings found.`}
+                    </div>
+                  ) : (
+                    (statusFilter === 'all' ? upcoming : filteredMeetings).map(m => {
+                      const sc = STATUS_COLORS[m.status] || STATUS_COLORS.scheduled;
+                      return (
+                        <div key={m._id}
+                          onClick={() => setDetail(m)}
+                          style={{ padding:'12px 18px', borderBottom:'1px solid #f9fafb', cursor:'pointer', transition: 'background .12s' }}
+                          onMouseEnter={e => e.currentTarget.style.background='#f9fafb'}
+                          onMouseLeave={e => e.currentTarget.style.background='#fff'}
+                        >
+                          <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'flex-start' }}>
+                            <div style={{ fontWeight:600, fontSize:13, color: '#1f2937' }}>{m.title}</div>
+                            <span style={{ ...sc, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600, whiteSpace:'nowrap' }}>{m.status}</span>
+                          </div>
+                          <div style={{ fontSize:11, color:'#9ca3af', marginTop:3 }}>
+                            {formatDate(m.date)} · {m.startTime} – {m.endTime}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              ))}
+              </div>
+
+              {/* Status Filter Cards */}
+              <div className="card">
+                <div className="card-body" style={{ padding: '12px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, padding: '2px 4px' }}>
+                    Filter Meetings
+                  </div>
+                  {[
+                    { label: 'All', key: 'all', count: meetings.length, bg: '#f3f4f6', c: '#374151' },
+                    { label: 'Scheduled', key: 'scheduled', count: meetings.filter(m=>m.status==='scheduled').length, bg: '#dbeafe', c: '#1d4ed8' },
+                    { label: 'Completed', key: 'completed', count: meetings.filter(m=>m.status==='completed').length, bg: '#dcfce7', c: '#166534' },
+                    { label: 'Cancelled', key: 'cancelled', count: meetings.filter(m=>m.status==='cancelled').length, bg: '#fee2e2', c: '#991b1b' },
+                  ].map(({ label, key, count, bg, c }) => {
+                    const isActive = statusFilter === key;
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => setStatusFilter(key)}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '9px 12px', borderRadius: 8, marginBottom: 4, cursor: 'pointer',
+                          background: isActive ? '#f0fdf4' : 'transparent',
+                          border: isActive ? '1.5px solid #10b981' : '1.5px solid transparent',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f9fafb'; }}
+                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? '#f0fdf4' : 'transparent'; }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#065f46' : '#4b5563' }}>
+                          {isActive ? `✓ ${label}` : label}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, background: bg, color: c, padding: '2px 10px', borderRadius: 20 }}>
+                          {count}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { taskAPI, userAPI, reportAPI, projectAPI, authAPI } from "../../utils/api";
+import { taskAPI, userAPI, reportAPI, projectAPI, authAPI, meetingAPI } from "../../utils/api";
 import { StatusBadge, Avatar, Toast } from "../../components/shared/index.jsx";
 import TaskModal from "../../components/shared/TaskModal.jsx";
 import SubTaskList from "../../components/shared/SubTaskList.jsx";
@@ -358,6 +358,7 @@ export function SupervisorDashboard({ setPage }) {
   const [juniorReport, setJuniorReport] = useState([]); // junior supervisors
   const [supervisorReport, setSupervisorReport] = useState([]); // other supervisors (for senior view)
   const [myTasks, setMyTasks] = useState([]);
+  const [upcomingMeetings, setUpcomingMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fixing, setFixing] = useState(false);
   const [fixDone, setFixDone] = useState(false);
@@ -372,10 +373,11 @@ export function SupervisorDashboard({ setPage }) {
       reportAPI.supervisors
         ? reportAPI.supervisors()
         : Promise.resolve({ report: [] }),
+      meetingAPI.getAll().catch(() => ({ meetings: [] })),
     ];
 
     Promise.all(calls)
-      .then(([mine, r, svReport]) => {
+      .then(([mine, r, svReport, meetRes]) => {
         setMyTasks((mine.tasks || []).filter(t => String(t.assignedTo?._id || t.assignedTo) === myId));
         if (r) setReport(r.report || []);
 
@@ -385,6 +387,17 @@ export function SupervisorDashboard({ setPage }) {
         if (isSenior) {
           setSupervisorReport(allSvs.filter(sv => sv.supervisorLevel !== "junior" && String(sv._id) !== myId));
         }
+
+        const allMeetings = meetRes?.meetings || [];
+        const todayStr = new Date().toISOString().split("T")[0];
+        const upcoming = allMeetings
+          .filter(m => m.status !== 'cancelled' && m.date && m.date >= todayStr)
+          .sort((a, b) => {
+            const diff = new Date(a.date) - new Date(b.date);
+            if (diff !== 0) return diff;
+            return (a.startTime || '').localeCompare(b.startTime || '');
+          });
+        setUpcomingMeetings(upcoming.slice(0, 5));
 
         setLoading(false);
       })
@@ -432,7 +445,7 @@ export function SupervisorDashboard({ setPage }) {
             <span style={{ fontSize: 22 }}>🍃</span>
           </div>
           <div className="egi-greeting-sub">
-            Here's an overview of your internship management activities.
+            Here's an overview of your staff management activities.
           </div>
           <div className="egi-quote-box">
             "Great people build great things."
@@ -440,20 +453,12 @@ export function SupervisorDashboard({ setPage }) {
         </div>
         <div className="egi-greeting-right">
           <div style={{
-            display: "flex", alignItems: "center", gap: 10,
+            display: "flex", alignItems: "center", justifyContent: "center",
             background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
-            padding: "8px 16px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.8)",
+            padding: "8px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.8)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.06)"
           }}>
-            <img src={logoImg} alt="EGI" style={{ width: 28, height: 28, objectFit: "contain" }} />
-            <div style={{ lineHeight: 1.15 }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11.5, fontWeight: 800, color: "#072a1d", letterSpacing: 0.8 }}>
-                ECO GREEN
-              </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 8, color: "#0d593e", letterSpacing: 1.5 }}>
-                INTERNATIONAL
-              </div>
-            </div>
+            <img src={logoImg} alt="Company Logo" style={{ width: 44, height: 44, objectFit: "contain", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.12))" }} />
           </div>
         </div>
       </div>
@@ -541,12 +546,12 @@ export function SupervisorDashboard({ setPage }) {
         {/* ── Left Column: Intern Weekly Hours + Bottom Row (My Overview & Recent Activity) ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* Intern Weekly Hours Card */}
+          {/* Staff Weekly Hours Card */}
           <div className="card">
             <div className="card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span>👥</span>
-                <span>Intern Weekly Hours</span>
+                <span>Staff Weekly Hours</span>
               </div>
               <button onClick={loadData} style={{
                 fontSize: 11.5, fontWeight: 700, padding: "5px 12px", borderRadius: 8,
@@ -606,7 +611,7 @@ export function SupervisorDashboard({ setPage }) {
                 ))
               ) : (
                 <div style={{ padding: "28px 20px", textAlign: "center", color: "var(--gray-400)" }}>
-                  <p style={{ fontSize: 13 }}>No interns enrolled yet.</p>
+                  <p style={{ fontSize: 13 }}>No staff enrolled yet.</p>
                 </div>
               )}
             </div>
@@ -672,58 +677,6 @@ export function SupervisorDashboard({ setPage }) {
               </div>
             </div>
 
-            {/* Recent Activity Card */}
-            <div className="card">
-              <div className="card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <span>🕒</span>
-                  <span>Recent Activity</span>
-                </div>
-                <button
-                  onClick={() => setPage?.("tasks")}
-                  style={{ background: "none", border: "none", color: "#0d6e48", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
-                >
-                  View All →
-                </button>
-              </div>
-              <div className="card-body" style={{ padding: "14px 18px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "flex", alignItems: "start", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#dcfce7", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12 }}>
-                      ✓
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#1b382b" }}>Task completed by Imansa</div>
-                      <div style={{ fontSize: 11, color: "#6c897c" }}>Frontend UI update - HOC Project</div>
-                    </div>
-                    <div style={{ fontSize: 10.5, color: "#9ca3af", flexShrink: 0 }}>2h ago</div>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "start", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#dbeafe", color: "#1e40af", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12 }}>
-                      📄
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#1b382b" }}>New leave request</div>
-                      <div style={{ fontSize: 11, color: "#6c897c" }}>Methmini - Annual Leave</div>
-                    </div>
-                    <div style={{ fontSize: 10.5, color: "#9ca3af", flexShrink: 0 }}>4h ago</div>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "start", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f3e8ff", color: "#7e22ce", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12 }}>
-                      👤
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#1b382b" }}>Intern profile updated</div>
-                      <div style={{ fontSize: 11, color: "#6c897c" }}>Kaweesha - Profile Information</div>
-                    </div>
-                    <div style={{ fontSize: 10.5, color: "#9ca3af", flexShrink: 0 }}>7h ago</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
           </div>
 
         </div>
@@ -746,61 +699,57 @@ export function SupervisorDashboard({ setPage }) {
               </button>
             </div>
             <div className="card-body" style={{ padding: "14px 18px" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {/* Event 1 */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 10, background: "#f4f8f5",
-                    border: "1px solid #e1ebe5", display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#072a1d", lineHeight: 1 }}>23</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: "#527564", textTransform: "uppercase" }}>Sep</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#163428" }}>Weekly Meeting</div>
-                    <div style={{ fontSize: 11, color: "#6b877a" }}>Department meeting</div>
-                    <div style={{ fontSize: 10.5, color: "#93aaa0", marginTop: 2 }}>10:00 AM - 11:00 AM</div>
-                  </div>
-                  <span style={{ fontSize: 14, color: "#8daea0" }}>👥</span>
+              {upcomingMeetings.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "18px 10px" }}>
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>📅</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#6b7280" }}>No upcoming meetings scheduled</div>
+                  <button
+                    onClick={() => setPage?.("schedule")}
+                    style={{
+                      marginTop: 10, padding: "6px 14px", borderRadius: 8, border: "1px solid #10b981",
+                      background: "#ecfdf5", color: "#047857", fontSize: 11.5, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit"
+                    }}
+                  >
+                    + Schedule Meeting
+                  </button>
                 </div>
-
-                {/* Event 2 */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 10, background: "#f4f8f5",
-                    border: "1px solid #e1ebe5", display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#072a1d", lineHeight: 1 }}>24</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: "#527564", textTransform: "uppercase" }}>Sep</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#163428" }}>Task Review</div>
-                    <div style={{ fontSize: 11, color: "#6b877a" }}>Intern progress review</div>
-                    <div style={{ fontSize: 10.5, color: "#93aaa0", marginTop: 2 }}>02:00 PM - 03:00 PM</div>
-                  </div>
-                  <span style={{ fontSize: 14, color: "#10b981" }}>✓</span>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {upcomingMeetings.map((m) => {
+                    const mDate = new Date(m.date);
+                    const dayNum = mDate.getDate();
+                    const monthStr = mDate.toLocaleDateString("en-GB", { month: "short" });
+                    return (
+                      <div
+                        key={m._id}
+                        onClick={() => setPage?.("schedule")}
+                        style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
+                        title="Click to view schedule"
+                      >
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 10, background: "#f4f8f5",
+                          border: "1px solid #e1ebe5", display: "flex", flexDirection: "column",
+                          alignItems: "center", justifyContent: "center", flexShrink: 0,
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#072a1d", lineHeight: 1 }}>{dayNum}</div>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: "#527564", textTransform: "uppercase" }}>{monthStr}</div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#163428", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title}</div>
+                          <div style={{ fontSize: 11, color: "#6b877a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.description || m.location || "Scheduled Meeting"}</div>
+                          <div style={{ fontSize: 10.5, color: "#93aaa0", marginTop: 2 }}>
+                            {m.startTime ? `${m.startTime}${m.endTime ? ` - ${m.endTime}` : ""}` : "All Day"}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 14, color: "#8daea0" }}>
+                          {m.meetingLink ? "🔗" : (m.participants?.length > 1 ? "👥" : "📌")}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* Event 3 */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 10, background: "#f4f8f5",
-                    border: "1px solid #e1ebe5", display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#072a1d", lineHeight: 1 }}>26</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: "#527564", textTransform: "uppercase" }}>Sep</div>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#163428" }}>Post Approval</div>
-                    <div style={{ fontSize: 11, color: "#6b877a" }}>Content approval</div>
-                    <div style={{ fontSize: 10.5, color: "#93aaa0", marginTop: 2 }}>11:00 AM - 12:00 PM</div>
-                  </div>
-                  <span style={{ fontSize: 14, color: "#8daea0" }}>📄</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -831,7 +780,7 @@ export function SupervisorDashboard({ setPage }) {
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
-                  <span>View Interns</span>
+                  <span>View Staff</span>
                 </button>
 
                 <button className="egi-quick-action-btn egi-qa-purple" onClick={() => setPage?.("projects")}>
@@ -856,8 +805,8 @@ export function SupervisorDashboard({ setPage }) {
           {/* Greener Tomorrow Motto Banner */}
           <div className="egi-eco-motto-banner">
             <div>
-              <div className="egi-eco-motto-title">Together for a<br />Greener Tomorrow</div>
-              <div className="egi-eco-motto-sub">Eco Green International</div>
+              <div className="egi-eco-motto-title">Excellence in<br />Professional Learning</div>
+              <div className="egi-eco-motto-sub">House of Cambridge</div>
             </div>
             <svg width="70" height="70" viewBox="0 0 100 100" fill="#10b981" style={{ opacity: 0.35 }}>
               <path d="M50 0 C75 25 90 60 70 85 C55 100 25 95 15 80 C0 60 20 20 50 0 Z"/>
@@ -1519,18 +1468,18 @@ export function InternsPage() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
-          <h2 style={{ fontFamily: "Syne,sans-serif", fontSize: 20, fontWeight: 800, color: "var(--green-900)" }}>👥 Intern Management</h2>
-          <p style={{ fontSize: 13, color: "var(--gray-400)", marginTop: 4 }}>Manage intern accounts and track their progress</p>
+          <h2 style={{ fontFamily: "Syne,sans-serif", fontSize: 20, fontWeight: 800, color: "var(--green-900)" }}>👥 Staff Management</h2>
+          <p style={{ fontSize: 13, color: "var(--gray-400)", marginTop: 4 }}>Manage staff accounts and track their progress</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAddIntern(true)}>+ Add Intern</button>
+        <button className="btn btn-primary" onClick={() => setShowAddIntern(true)}>+ Add Staff</button>
       </div>
 
-      {showAddIntern && (<Modal onBgClick={() => setShowAddIntern(false)}><div style={{ width: 500 }}><div style={{ fontFamily: "Syne,sans-serif", fontWeight: 800, fontSize: 18, color: "#0a2e1a", marginBottom: 6 }}>➕ Add New Intern</div><p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Fill in the details to register a new intern.</p><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{[["Full Name *", "name", "text"], ["Username *", "username", "text"], ["Password *", "password", "password"], ["Email *", "email", "email"], ["Contact", "contact", "text"], ["Position", "position", "text"], ["Department", "department", "text"], ["Start Date", "startDate", "date"], ["End Date", "endDate", "date"]].map(([label, key, type]) => (<div key={key} style={{ gridColumn: key === "name" ? "1/-1" : "auto" }}><label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>{label}</label><input type={type} className="form-input" value={internForm[key]} onChange={e => setInternForm(f => ({ ...f, [key]: e.target.value }))} /></div>))}</div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}><button className="btn btn-secondary" onClick={() => setShowAddIntern(false)}>Cancel</button><button className="btn btn-primary" onClick={handleAddIntern} disabled={addingIntern}>{addingIntern ? "Adding…" : "Add Intern"}</button></div></div></Modal>)}
+      {showAddIntern && (<Modal onBgClick={() => setShowAddIntern(false)}><div style={{ width: 500 }}><div style={{ fontFamily: "Syne,sans-serif", fontWeight: 800, fontSize: 18, color: "#0a2e1a", marginBottom: 6 }}>➕ Add New Staff</div><p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Fill in the details to register a new staff member.</p><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{[["Full Name *", "name", "text"], ["Username *", "username", "text"], ["Password *", "password", "password"], ["Email *", "email", "email"], ["Contact", "contact", "text"], ["Position", "position", "text"], ["Department", "department", "text"], ["Start Date", "startDate", "date"], ["End Date", "endDate", "date"]].map(([label, key, type]) => (<div key={key} style={{ gridColumn: key === "name" ? "1/-1" : "auto" }}><label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>{label}</label><input type={type} className="form-input" value={internForm[key]} onChange={e => setInternForm(f => ({ ...f, [key]: e.target.value }))} /></div>))}</div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}><button className="btn btn-secondary" onClick={() => setShowAddIntern(false)}>Cancel</button><button className="btn btn-primary" onClick={handleAddIntern} disabled={addingIntern}>{addingIntern ? "Adding…" : "Add Staff"}</button></div></div></Modal>)}
       {resetTarget && (<Modal onBgClick={() => setResetTarget(null)}><div style={{ width: 360 }}><div style={{ fontFamily: "Syne,sans-serif", fontWeight: 800, fontSize: 18, color: "#0a2e1a", marginBottom: 6 }}>🔑 Reset Password</div><p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>New temporary password for <strong>{resetTarget.name}</strong>.</p><label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 5 }}>New Password</label><input type="password" className="form-input" style={{ marginBottom: 20 }} value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Min. 6 characters" onKeyDown={e => e.key === "Enter" && handleResetPassword()} /><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><button className="btn btn-secondary" onClick={() => { setResetTarget(null); setNewPass(""); }}>Cancel</button><button className="btn btn-primary" onClick={handleResetPassword} disabled={resetting}>{resetting ? "Resetting…" : "Reset Password"}</button></div></div></Modal>)}
-      {deleteTarget && (<Modal onBgClick={() => setDeleteTarget(null)}><div style={{ width: 360 }}><div style={{ fontFamily: "Syne,sans-serif", fontWeight: 800, fontSize: 18, color: "#dc2626", marginBottom: 6 }}>🗑 Remove Intern</div><p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Remove <strong>{deleteTarget.name}</strong>? This cannot be undone.</p><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><button className="btn btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button><button style={{ padding: "9px 20px", borderRadius: 9, border: "none", background: "#ef4444", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={handleDeleteIntern} disabled={deleting}>{deleting ? "Removing…" : "Remove Intern"}</button></div></div></Modal>)}
+      {deleteTarget && (<Modal onBgClick={() => setDeleteTarget(null)}><div style={{ width: 360 }}><div style={{ fontFamily: "Syne,sans-serif", fontWeight: 800, fontSize: 18, color: "#dc2626", marginBottom: 6 }}>🗑 Remove Staff</div><p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Remove <strong>{deleteTarget.name}</strong>? This cannot be undone.</p><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><button className="btn btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button><button style={{ padding: "9px 20px", borderRadius: 9, border: "none", background: "#ef4444", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} onClick={handleDeleteIntern} disabled={deleting}>{deleting ? "Removing…" : "Remove Staff"}</button></div></div></Modal>)}
 
       {report.length === 0 ? (
-        <div className="empty-state"><div className="empty-icon">👥</div><h3>No interns yet</h3><p>Click "Add Intern" to register your first intern.</p></div>
+        <div className="empty-state"><div className="empty-icon">👥</div><h3>No staff yet</h3><p>Click "Add Staff" to register your first staff member.</p></div>
       ) : (
         <>
           <div className="grid-3">
@@ -1542,7 +1491,7 @@ export function InternsPage() {
                     <Avatar initials={intern.avatar} color={intern.avatarColor} size="lg" />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "Syne,sans-serif", fontWeight: 800, fontSize: 15, color: "var(--green-900)" }}>{intern.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--green-600)", fontWeight: 600, marginTop: 2 }}>{intern.position || "Intern"}</div>
+                      <div style={{ fontSize: 12, color: "var(--green-600)", fontWeight: 600, marginTop: 2 }}>{intern.position || "Staff"}</div>
                     </div>
                     {isSenior && <button onClick={() => setDeleteTarget({ _id: intern._id, name: intern.name })} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#ef4444", flexShrink: 0, padding: "4px" }}>🗑</button>}
                   </div>

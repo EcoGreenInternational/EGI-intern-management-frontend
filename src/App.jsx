@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { Sidebar, Topbar } from "./components/layout/index.jsx";
 import { Spinner } from "./components/shared/index.jsx";
+import companyLogo from "./assets/logo.png";
 
 import InternLoginPage from "./components/auth/InternLoginPage.jsx";
 import SupervisorLoginPage from "./components/auth/SupervisorLoginPage.jsx";
@@ -38,18 +39,10 @@ function LoginChoose({ setView }) {
       {/* Modern Top Header */}
       <header className="egi-landing-header">
         <div className="egi-landing-brand">
-          <svg width="38" height="38" viewBox="0 0 48 48" fill="none" className="egi-landing-brand-svg">
-            <path d="M16 38C12 28 18 16 36 10C36 24 28 36 16 38Z" fill="#0f6240"/>
-            <path d="M16 38C9 30 9 22 14 17C20 20 20 28 16 38Z" fill="#16a34a"/>
-            <path d="M16 38C18 30 24 21 36 10" stroke="#a7f3d0" strokeWidth="1.6" strokeLinecap="round"/>
-          </svg>
-          <div className="egi-landing-brand-text">
-            <span className="egi-landing-brand-title">ECO GREEN</span>
-            <span className="egi-landing-brand-sub">INTERNATIONAL</span>
-          </div>
+          <img src={companyLogo} alt="House of Cambridge Logo" className="egi-landing-brand-logo" />
         </div>
         <div className="egi-landing-tagline">
-          Green Solutions &nbsp;|&nbsp; Sustainable Future
+          Excellence &nbsp;|&nbsp; Professional Management
         </div>
       </header>
 
@@ -57,15 +50,15 @@ function LoginChoose({ setView }) {
       <main className="egi-landing-content">
         <div className="egi-hero-title-box">
           <div className="egi-hero-accent-bar" />
-          <h1 className="egi-hero-heading">Eco Green International</h1>
-          <h2 className="egi-hero-subtitle">Intern Management Portal</h2>
+          <h1 className="egi-hero-heading">House of Cambridge</h1>
+          <h2 className="egi-hero-subtitle">Staff Management Portal</h2>
           <p className="egi-hero-desc">
-            Manage internship activities, tasks, work logs and performance.
+            Manage staff activities, tasks, work logs and performance.
           </p>
         </div>
 
         <div className="egi-portal-cards-row">
-          {/* Intern Portal Card */}
+          {/* Staff Portal Card */}
           <div className="egi-portal-card egi-portal-card--intern" onClick={() => setView("intern")}>
             <div className="egi-portal-icon-wrap egi-portal-icon-wrap--intern">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -73,12 +66,12 @@ function LoginChoose({ setView }) {
                 <path d="M6 12v5c3 3 9 3 12 0v-5"/>
               </svg>
             </div>
-            <h3 className="egi-portal-card-title">Intern Portal</h3>
+            <h3 className="egi-portal-card-title">Staff Portal</h3>
             <p className="egi-portal-card-desc">
               View your assigned tasks, submit work logs and track your progress.
             </p>
             <button className="egi-portal-btn egi-portal-btn--intern">
-              Continue as Intern →
+              Continue as Staff →
             </button>
             <svg className="egi-portal-leaf-watermark" viewBox="0 0 120 120" fill="none">
               <path d="M42 115C32 80 48 45 98 25C98 65 78 100 42 115Z" fill="#a7f3d0" fillOpacity="0.5"/>
@@ -103,7 +96,7 @@ function LoginChoose({ setView }) {
             </div>
             <h3 className="egi-portal-card-title">Supervisor Portal</h3>
             <p className="egi-portal-card-desc">
-              Manage interns, assign tasks and view performance reports.
+              Manage staff, assign tasks and view performance reports.
             </p>
             <button className="egi-portal-btn egi-portal-btn--supervisor">
               Continue as Supervisor →
@@ -118,15 +111,9 @@ function LoginChoose({ setView }) {
 
       {/* Modern Footer Bar */}
       <footer className="egi-landing-footer">
-        <div className="egi-landing-footer-left">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <span>Secure Internal Portal</span>
-        </div>
+        <div className="egi-landing-footer-left" />
         <div className="egi-landing-footer-center">
-          © 2026 Eco Green International Pvt Ltd
+          © 2026 House of Cambridge Pvt Ltd
         </div>
         <div className="egi-landing-footer-right">
           <span>Privacy Policy</span>
@@ -199,7 +186,7 @@ function AppContent() {
        case "renewals":
   return isSenior ? <ThirdPartyItemsPage /> : <div>Access Denied</div>;
         case "supervisors": 
-          return isSenior ? <SupervisorsPage /> : <div>Access Denied</div>;
+          return <SupervisorsPage />;
         default: 
           return <div style={{ padding: 40 }}>Page not found</div>;
       }

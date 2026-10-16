@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { authAPI } from "../../utils/api";
+import companyLogo from "../../assets/logo.png";
 
 import "../../styles/auth.css";
 
@@ -40,18 +41,10 @@ export default function ForcedChangePassword() {
       {/* Top Header */}
       <header className="egi-landing-header">
         <div className="egi-landing-brand">
-          <svg width="38" height="38" viewBox="0 0 48 48" fill="none" className="egi-landing-brand-svg">
-            <path d="M16 38C12 28 18 16 36 10C36 24 28 36 16 38Z" fill="#0f6240"/>
-            <path d="M16 38C9 30 9 22 14 17C20 20 20 28 16 38Z" fill="#16a34a"/>
-            <path d="M16 38C18 30 24 21 36 10" stroke="#a7f3d0" strokeWidth="1.6" strokeLinecap="round"/>
-          </svg>
-          <div className="egi-landing-brand-text">
-            <span className="egi-landing-brand-title">ECO GREEN</span>
-            <span className="egi-landing-brand-sub">INTERNATIONAL</span>
-          </div>
+          <img src={companyLogo} alt="House of Cambridge Logo" className="egi-landing-brand-logo" />
         </div>
         <div className="egi-landing-tagline">
-          Green Solutions &nbsp;|&nbsp; Sustainable Future
+          Excellence &nbsp;|&nbsp; Professional Management
         </div>
       </header>
 
@@ -148,15 +141,9 @@ export default function ForcedChangePassword() {
 
       {/* Footer */}
       <footer className="egi-landing-footer">
-        <div className="egi-landing-footer-left">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <span>Secure Internal Portal</span>
-        </div>
+        <div className="egi-landing-footer-left" />
         <div className="egi-landing-footer-center">
-          © 2026 Eco Green International Pvt Ltd
+          © 2026 House of Cambridge Pvt Ltd
         </div>
         <div className="egi-landing-footer-right">
           <span>Privacy Policy</span>

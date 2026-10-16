@@ -13,6 +13,7 @@ import {
   ClockIcon,
   TrendingUpIcon,
 } from "../../components/shared/Icons.jsx";
+import logoImg from "../../assets/logo.png";
 
 // ─── CSS injection for overdue/leave row hover states ─────────────────────────
 function OverdueRowStyles() {
@@ -438,11 +439,11 @@ const getWeekBounds = () => {
         <div className="egi-greeting-left">
           <div className="egi-greeting-salutation">Good Morning,</div>
           <div className="egi-greeting-name">
-            {user?.name || "Intern"}
+            {user?.name || "Staff"}
             <span style={{ fontSize: 22 }}>🍃</span>
           </div>
           <div className="egi-greeting-sub">
-            Here's an overview of your internship tasks and progress.
+            Here's an overview of your staff tasks and progress.
           </div>
           <div className="egi-quote-box">
             "Great people build great things."
@@ -450,30 +451,18 @@ const getWeekBounds = () => {
         </div>
         <div className="egi-greeting-right">
           <div style={{
-            display: "flex", alignItems: "center", gap: 10,
+            display: "flex", alignItems: "center", justifyContent: "center",
             background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
-            padding: "8px 16px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.8)",
+            padding: "8px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.8)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.06)"
           }}>
-            <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-              <path d="M16 38C12 28 18 16 36 10C36 24 28 36 16 38Z" fill="#0f6240"/>
-              <path d="M16 38C9 30 9 22 14 17C20 20 20 28 16 38Z" fill="#16a34a"/>
-              <path d="M16 38C18 30 24 21 36 10" stroke="#a7f3d0" strokeWidth="1.6" strokeLinecap="round"/>
-            </svg>
-            <div style={{ lineHeight: 1.15 }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11.5, fontWeight: 800, color: "#072a1d", letterSpacing: 0.8 }}>
-                ECO GREEN
-              </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 8, color: "#0d593e", letterSpacing: 1.5 }}>
-                INTERNATIONAL
-              </div>
-            </div>
+            <img src={logoImg} alt="Company Logo" style={{ width: 44, height: 44, objectFit: "contain", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.12))" }} />
           </div>
         </div>
       </div>
 
       <div className="alert alert-warning mb-20" style={{ borderRadius: 12 }}>
-        ⚡ The internship requires at least <strong>&nbsp;8 hours/day</strong>.
+        ⚡ The schedule requires at least <strong>&nbsp;8 hours/day</strong>.
       </div>
 
       {/* ── 4 Stat Cards ── */}
