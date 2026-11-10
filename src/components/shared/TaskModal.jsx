@@ -14,9 +14,11 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
 
   const [form, setForm] = useState(
     task
-      ? { ...task, assignedTo: task.assignedTo?._id || task.assignedTo || "" }
+      ? { ...task, assignedTo: task.assignedTo?._id || task.assignedTo || "", endDate: task.date || todayISO(), isDateRange: false }
       : {
           date:         todayISO(),
+          endDate:      todayISO(),
+          isDateRange:  false,
           project:      "EGI",
           assignedBy:   currentUser?.name ?? "",
           assignedTo:   currentUser?.role === "intern"
@@ -80,7 +82,7 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
         <div className="modal-header">
           <div>
             <div className="modal-title">
-              {isLeaveMode ? "Mark Leave Day" : (task ? "Edit Task" : "Create New Task")}
+              {isLeaveMode ? (task ? "Edit Leave Day" : "Mark Leave Day") : (task ? "Edit Task" : "Create New Task")}
             </div>
             <p className="text-sm text-gray" style={{ marginTop: 3 }}>
               {isLeaveMode
@@ -120,10 +122,41 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
           )}
 
           <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Date</label>
-              <input className="form-input" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
-            </div>
+            {isLeaveMode && !task ? (
+              <div className="form-group full">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <label className="form-label" style={{ margin: 0 }}>Date Selection</label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", color: "#92400e", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!form.isDateRange}
+                      onChange={e => set("isDateRange", e.target.checked)}
+                      style={{ cursor: "pointer", accentColor: "#f59e0b" }}
+                    />
+                    Date Range (Multiple Days)
+                  </label>
+                </div>
+                {form.isDateRange ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: "var(--gray-500)", display: "block", marginBottom: 3 }}>From Date</label>
+                      <input className="form-input" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: "var(--gray-500)", display: "block", marginBottom: 3 }}>To Date</label>
+                      <input className="form-input" type="date" value={form.endDate || form.date} min={form.date} onChange={e => set("endDate", e.target.value)} />
+                    </div>
+                  </div>
+                ) : (
+                  <input className="form-input" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+                )}
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">{isLeaveMode ? "Leave Date" : "Date"}</label>
+                <input className="form-input" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+              </div>
+            )}
 
             {!isLeaveMode && (
               <div className="form-group">
@@ -225,7 +258,7 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
             disabled={loading || !canSubmit}
             style={isLeaveMode ? { background: "linear-gradient(135deg,#f59e0b,#d97706)" } : {}}
           >
-            {loading ? "Saving…" : isLeaveMode ? "Mark Leave Day" : (task ? "Update Task" : "Create Task")}
+            {loading ? "Saving…" : isLeaveMode ? (task ? "Update Leave" : "Mark Leave Day") : (task ? "Update Task" : "Create Task")}
           </button>
         </div>
       </div>

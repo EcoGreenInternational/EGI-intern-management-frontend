@@ -279,11 +279,23 @@ function WorkTimeInput({ taskId, initialValue, onSave }) {
   );
 }
 
-function DateWeekFilter({ filterMode, setFilterMode, filterDate, setFilterDate, filterWeek, setFilterWeek, weekOptions }) {
+function DateWeekFilter({
+  filterMode, setFilterMode,
+  filterDate, setFilterDate,
+  filterStartDate, setFilterStartDate,
+  filterEndDate, setFilterEndDate,
+  filterWeek, setFilterWeek,
+  weekOptions
+}) {
   return (
     <>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {[{ key: "all", label: "All Time" }, { key: "date", label: "📅 By Date" }, { key: "week", label: "📆 By Week" }].map(({ key, label }) => (
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        {[
+          { key: "all", label: "All Time" },
+          { key: "date", label: "📅 By Date" },
+          { key: "range", label: "🗓️ Date Range" },
+          { key: "week", label: "📆 By Week" }
+        ].map(({ key, label }) => (
           <button key={key} onClick={() => setFilterMode(key)} style={{
             padding: "5px 12px", borderRadius: 8, border: "1px solid", fontSize: 12, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
@@ -297,6 +309,28 @@ function DateWeekFilter({ filterMode, setFilterMode, filterDate, setFilterDate, 
       {filterMode === "date" && (
         <input type="date" className="filter-select" value={filterDate}
           onChange={e => setFilterDate(e.target.value)} style={{ padding: "6px 10px" }} />
+      )}
+      {filterMode === "range" && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="date"
+            className="filter-select"
+            value={filterStartDate || ""}
+            onChange={e => setFilterStartDate(e.target.value)}
+            style={{ padding: "6px 10px" }}
+            title="Start Date"
+          />
+          <span style={{ fontSize: 12, color: "#6b7280" }}>to</span>
+          <input
+            type="date"
+            className="filter-select"
+            value={filterEndDate || ""}
+            min={filterStartDate}
+            onChange={e => setFilterEndDate(e.target.value)}
+            style={{ padding: "6px 10px" }}
+            title="End Date"
+          />
+        </div>
       )}
       {filterMode === "week" && (
         <select className="filter-select" value={filterWeek} onChange={e => setFilterWeek(e.target.value)}>
@@ -458,7 +492,7 @@ export function SupervisorDashboard({ setPage }) {
             padding: "8px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.8)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.06)"
           }}>
-            <img src={logoImg} alt="Company Logo" style={{ width: 44, height: 44, objectFit: "contain", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.12))" }} />
+           
           </div>
         </div>
       </div>
@@ -838,7 +872,10 @@ export function MyTasksPageSupervisor() {
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState("all");
   const [filterDate, setFilterDate] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
   const [filterWeek, setFilterWeek] = useState(() => getWeekKey());
+  const { confirm, ConfirmComponent } = useConfirm();
   const weekOptions = buildWeekOptions();
   const PAGE_SIZE = 15;
   const [page, setPage] = useState(1);
@@ -856,6 +893,10 @@ export function MyTasksPageSupervisor() {
     if (status !== "All") params.status = status;
     if (search) params.search = search;
     if (filterMode === "date" && filterDate) params.date = filterDate;
+    if (filterMode === "range") {
+      if (filterStartDate) params.startDate = filterStartDate;
+      if (filterEndDate)   params.endDate   = filterEndDate;
+    }
     if (filterMode === "week" && filterWeek) params.weekKey = filterWeek;
 
     taskAPI.getAll(params)
@@ -866,10 +907,10 @@ export function MyTasksPageSupervisor() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [status, search, user, page, filterMode, filterDate, filterWeek]);
+  }, [status, search, user, page, filterMode, filterDate, filterStartDate, filterEndDate, filterWeek]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [filterMode, filterDate, filterWeek, status, search]);
+  useEffect(() => { setPage(1); }, [filterMode, filterDate, filterStartDate, filterEndDate, filterWeek, status, search]);
 
   const handleSave = async (form) => {
     if (!user) return;
@@ -879,8 +920,22 @@ export function MyTasksPageSupervisor() {
       if (editTask) {
         const d = await taskAPI.update(editTask._id || editTask.id, taskForm);
         setTasks(ts => ts.map(t => (t._id || t.id) === (editTask._id || editTask.id) ? d.task : t));
+        setToast({ msg: form.isLeave ? "Leave updated!" : "Task updated!", type: "success" });
       } else {
-        await taskAPI.create(taskForm);
+        if (form.isLeave && form.isDateRange && form.endDate && form.endDate > form.date) {
+          const dates = [];
+          let curr = new Date(form.date);
+          const end = new Date(form.endDate);
+          while (curr <= end) {
+            dates.push(curr.toISOString().split("T")[0]);
+            curr.setDate(curr.getDate() + 1);
+          }
+          await Promise.all(dates.map(date => taskAPI.create({ ...taskForm, date, isLeave: true })));
+          setToast({ msg: `${dates.length} leave days created!`, type: "success" });
+        } else {
+          await taskAPI.create(taskForm);
+          setToast({ msg: form.isLeave ? "Leave marked!" : "Task created!", type: "success" });
+        }
         if (form.isLeave && weekendDates.length > 0) {
           await Promise.all(weekendDates.map(date => taskAPI.create({ ...taskForm, date, isLeave: true })));
           setWeekendDates([]);
@@ -890,6 +945,19 @@ export function MyTasksPageSupervisor() {
       setShowModal(false); setEditTask(null);
     } catch (e) { setToast({ msg: e.message, type: "error" }); }
     setSaving(false);
+  };
+
+  const handleDelete = async (taskToDelete) => {
+    const label = taskToDelete.isLeave ? "this leave record" : "this task";
+    const ok = await confirm(`Are you sure you want to delete ${label}?`);
+    if (!ok) return;
+    try {
+      await taskAPI.delete(taskToDelete._id || taskToDelete.id);
+      setToast({ msg: `${taskToDelete.isLeave ? "Leave" : "Task"} deleted successfully!`, type: "success" });
+      load();
+    } catch (e) {
+      setToast({ msg: e.message || "Failed to delete", type: "error" });
+    }
   };
 
   const handleStatus = async (id, newStatus) => {
@@ -918,6 +986,7 @@ export function MyTasksPageSupervisor() {
   return (
     <div className="animate-fadeUp">
       <OverdueRowStyles />
+      {ConfirmComponent}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {showModal && user && (
         <TaskModal
@@ -944,7 +1013,7 @@ export function MyTasksPageSupervisor() {
               <option value="All">All Status</option>
               {["To Do", "In Progress", "Done", "Hold"].map(s => <option key={s}>{s}</option>)}
             </select>
-            <DateWeekFilter filterMode={filterMode} setFilterMode={setFilterMode} filterDate={filterDate} setFilterDate={setFilterDate} filterWeek={filterWeek} setFilterWeek={setFilterWeek} weekOptions={weekOptions} />
+            <DateWeekFilter filterMode={filterMode} setFilterMode={setFilterMode} filterDate={filterDate} setFilterDate={setFilterDate} filterStartDate={filterStartDate} setFilterStartDate={setFilterStartDate} filterEndDate={filterEndDate} setFilterEndDate={setFilterEndDate} filterWeek={filterWeek} setFilterWeek={setFilterWeek} weekOptions={weekOptions} />
             <span className="text-sm text-gray" style={{ marginLeft: "auto" }}>{totalRecords} records</span>
           </div>
         </div>
@@ -981,7 +1050,25 @@ export function MyTasksPageSupervisor() {
                     <td>{t.isLeave ? "—" : t.adminCheckedUsers?.length > 0 ? t.adminCheckedUsers.map(sv => (<span key={sv.username} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", whiteSpace: "nowrap", marginRight: 3 }}>✓ {sv.name}</span>)) : <span style={{ fontSize: 12, color: "var(--gray-400)" }}>—</span>}</td>
                     <td>
                       <div className="flex gap-6">
-                        {!t.isLeave && <button className="btn btn-secondary btn-sm btn-icon" onClick={() => { setEditTask(t); setShowModal(true); }}>✏️</button>}
+                        <button
+                          className="btn btn-secondary btn-sm btn-icon"
+                          title={t.isLeave ? "Edit Leave" : "Edit Task"}
+                          onClick={() => { setEditTask(t); setShowModal(true); }}
+                        >✏️</button>
+                        <button
+                          className="btn btn-danger btn-sm btn-icon"
+                          title={t.isLeave ? "Delete Leave" : "Delete Task"}
+                          style={{
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: 7,
+                            padding: "4px 8px",
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                          onClick={() => handleDelete(t)}
+                        >🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -1016,7 +1103,10 @@ export function AllTasksPage() {
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState("all");
   const [filterDate, setFilterDate] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
   const [filterWeek, setFilterWeek] = useState(() => getWeekKey());
+  const { confirm, ConfirmComponent } = useConfirm();
   const weekOptions = buildWeekOptions();
   const PAGE_SIZE = 15;
   const [page, setPage] = useState(1);
@@ -1054,6 +1144,10 @@ export function AllTasksPage() {
     if (status !== "All") params.status = status;
     if (search) params.search = search;
     if (filterMode === "date" && filterDate) params.date = filterDate;
+    if (filterMode === "range") {
+      if (filterStartDate) params.startDate = filterStartDate;
+      if (filterEndDate)   params.endDate   = filterEndDate;
+    }
     if (filterMode === "week" && filterWeek) params.weekKey = filterWeek;
 
     taskAPI.getAll(params)
@@ -1067,7 +1161,7 @@ export function AllTasksPage() {
   }, [status, search, user, selectedMember, page, filterMode, filterDate, filterWeek]);
 
   useEffect(() => { if (view === "tasks" && selectedMember) load(); }, [load, view, selectedMember]);
-  useEffect(() => { setPage(1); }, [filterMode, filterDate, filterWeek, status, search, selectedMember]);
+  useEffect(() => { setPage(1); }, [filterMode, filterDate, filterStartDate, filterEndDate, filterWeek, status, search, selectedMember]);
 
   const tasks = allTasks;
 
@@ -1078,10 +1172,22 @@ export function AllTasksPage() {
       if (editTask) {
         const d = await taskAPI.update(editTask._id || editTask.id, form);
         setAllTasks(ts => ts.map(t => (t._id || t.id) === (editTask._id || editTask.id) ? d.task : t));
-        setToast({ msg: "Task updated!", type: "success" });
+        setToast({ msg: form.isLeave ? "Leave updated!" : "Task updated!", type: "success" });
       } else {
-        await taskAPI.create(form);
-        setToast({ msg: form.isLeave ? "Leave day marked!" : "Task assigned!", type: "success" });
+        if (form.isLeave && form.isDateRange && form.endDate && form.endDate > form.date) {
+          const dates = [];
+          let curr = new Date(form.date);
+          const end = new Date(form.endDate);
+          while (curr <= end) {
+            dates.push(curr.toISOString().split("T")[0]);
+            curr.setDate(curr.getDate() + 1);
+          }
+          await Promise.all(dates.map(date => taskAPI.create({ ...form, date, isLeave: true })));
+          setToast({ msg: `${dates.length} leave days created!`, type: "success" });
+        } else {
+          await taskAPI.create(form);
+          setToast({ msg: form.isLeave ? "Leave day marked!" : "Task assigned!", type: "success" });
+        }
         if (form.isLeave && weekendDates.length > 0) {
           await Promise.all(weekendDates.map(date => taskAPI.create({ ...form, date, isLeave: true })));
           setToast({ msg: `Leave + ${weekendDates.length} weekend day(s) saved!`, type: "success" });
@@ -1092,6 +1198,19 @@ export function AllTasksPage() {
       setShowModal(false); setEditTask(null);
     } catch (e) { setToast({ msg: e.message, type: "error" }); }
     setSaving(false);
+  };
+
+  const handleDelete = async (taskToDelete) => {
+    const label = taskToDelete.isLeave ? "this leave record" : "this task";
+    const ok = await confirm(`Are you sure you want to delete ${label}?`);
+    if (!ok) return;
+    try {
+      await taskAPI.delete(taskToDelete._id || taskToDelete.id);
+      setToast({ msg: `${taskToDelete.isLeave ? "Leave" : "Task"} deleted successfully!`, type: "success" });
+      load();
+    } catch (e) {
+      setToast({ msg: e.message || "Failed to delete", type: "error" });
+    }
   };
 
   const handleStatus = async (id, newStatus) => {
@@ -1250,6 +1369,7 @@ export function AllTasksPage() {
   return (
     <div className="animate-fadeUp">
       <OverdueRowStyles />
+      {ConfirmComponent}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       {showModal && user && (
         <TaskModal task={editTask} currentUser={user}
@@ -1285,7 +1405,7 @@ export function AllTasksPage() {
               <option value="All">All Status</option>
               {["To Do", "In Progress", "Done", "Hold"].map(s => <option key={s}>{s}</option>)}
             </select>
-            <DateWeekFilter filterMode={filterMode} setFilterMode={setFilterMode} filterDate={filterDate} setFilterDate={setFilterDate} filterWeek={filterWeek} setFilterWeek={setFilterWeek} weekOptions={weekOptions} />
+            <DateWeekFilter filterMode={filterMode} setFilterMode={setFilterMode} filterDate={filterDate} setFilterDate={setFilterDate} filterStartDate={filterStartDate} setFilterStartDate={setFilterStartDate} filterEndDate={filterEndDate} setFilterEndDate={setFilterEndDate} filterWeek={filterWeek} setFilterWeek={setFilterWeek} weekOptions={weekOptions} />
             <span className="text-sm text-gray" style={{ marginLeft: "auto" }}>{totalRecords} records</span>
           </div>
         </div>
@@ -1341,7 +1461,25 @@ export function AllTasksPage() {
                     </td>
                     <td>
                       <div className="flex gap-6">
-                        {!t.isLeave && <button className="btn btn-secondary btn-sm btn-icon" onClick={() => { setEditTask(t); setShowModal(true); }}>✏️</button>}
+                        <button
+                          className="btn btn-secondary btn-sm btn-icon"
+                          title={t.isLeave ? "Edit Leave" : "Edit Task"}
+                          onClick={() => { setEditTask(t); setShowModal(true); }}
+                        >✏️</button>
+                        <button
+                          className="btn btn-danger btn-sm btn-icon"
+                          title={t.isLeave ? "Delete Leave" : "Delete Task"}
+                          style={{
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: 7,
+                            padding: "4px 8px",
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                          onClick={() => handleDelete(t)}
+                        >🗑️</button>
                       </div>
                     </td>
                   </tr>

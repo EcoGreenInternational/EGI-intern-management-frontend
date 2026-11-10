@@ -188,17 +188,12 @@ export function Sidebar({ page, setPage }) {
         <div style={{ padding: "22px 20px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
-              width: 44, height: 44,
-              borderRadius: 10,
-              background: "#ffffff",
-              padding: 2,
+              height: 68,
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
-              overflow: "hidden",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
             }}>
               <img src={egiLogo} alt="Company Logo"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                style={{ height: "100%", width: "auto", objectFit: "contain", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.35))" }}
               />
             </div>
             <div>
@@ -206,7 +201,7 @@ export function Sidebar({ page, setPage }) {
                 HOUSE OF CAMBRIDGE
               </div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, color: "rgba(255,255,255,0.6)", letterSpacing: 1.5, textTransform: "uppercase", marginTop: 2 }}>
-                STAFF PORTAL
+                {user?.role === "intern" ? "INTERN PORTAL" : "STAFF PORTAL"}
               </div>
             </div>
           </div>

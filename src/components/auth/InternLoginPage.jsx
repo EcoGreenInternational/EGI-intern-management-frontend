@@ -91,8 +91,8 @@ export default function InternLoginPage({ onBack }) {
                     <path d="M6 12v5c3 3 9 3 12 0v-5"/>
                   </svg>
                 </div>
-                <h2 className="auth-card__title">Staff Login</h2>
-                <p className="auth-card__sub">Sign in to your staff portal</p>
+                <h2 className="auth-card__title">Intern Login</h2>
+                <p className="auth-card__sub">Sign in to your intern portal</p>
               </div>
 
               {error && <div className="auth-alert auth-alert--error">{error}</div>}
@@ -121,7 +121,7 @@ export default function InternLoginPage({ onBack }) {
               </div>
 
               <button className="auth-btn auth-btn--intern" onClick={handleLogin} disabled={loading}>
-                {loading ? "Signing in…" : "Sign In as Staff →"}
+                {loading ? "Signing in…" : "Sign In as Intern →"}
               </button>
               {onBack && (
                 <button className="auth-btn auth-btn--back" onClick={onBack}>

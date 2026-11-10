@@ -58,7 +58,7 @@ function LoginChoose({ setView }) {
         </div>
 
         <div className="egi-portal-cards-row">
-          {/* Staff Portal Card */}
+          {/* Intern Portal Card */}
           <div className="egi-portal-card egi-portal-card--intern" onClick={() => setView("intern")}>
             <div className="egi-portal-icon-wrap egi-portal-icon-wrap--intern">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -66,12 +66,12 @@ function LoginChoose({ setView }) {
                 <path d="M6 12v5c3 3 9 3 12 0v-5"/>
               </svg>
             </div>
-            <h3 className="egi-portal-card-title">Staff Portal</h3>
+            <h3 className="egi-portal-card-title">Intern Portal</h3>
             <p className="egi-portal-card-desc">
               View your assigned tasks, submit work logs and track your progress.
             </p>
             <button className="egi-portal-btn egi-portal-btn--intern">
-              Continue as Staff →
+              Continue as Intern →
             </button>
             <svg className="egi-portal-leaf-watermark" viewBox="0 0 120 120" fill="none">
               <path d="M42 115C32 80 48 45 98 25C98 65 78 100 42 115Z" fill="#a7f3d0" fillOpacity="0.5"/>

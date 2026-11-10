@@ -255,11 +255,23 @@ function WorkTimeInput({ taskId, initialValue, onSave }) {
   );
 }
 
-function DateWeekFilter({ filterMode, setFilterMode, filterDate, setFilterDate, filterWeek, setFilterWeek, weekOptions }) {
+function DateWeekFilter({
+  filterMode, setFilterMode,
+  filterDate, setFilterDate,
+  filterStartDate, setFilterStartDate,
+  filterEndDate, setFilterEndDate,
+  filterWeek, setFilterWeek,
+  weekOptions
+}) {
   return (
     <>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {[{ key: "all", label: "All Time" }, { key: "date", label: "📅 By Date" }, { key: "week", label: "📆 By Week" }].map(({ key, label }) => (
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        {[
+          { key: "all", label: "All Time" },
+          { key: "date", label: "📅 By Date" },
+          { key: "range", label: "🗓️ Date Range" },
+          { key: "week", label: "📆 By Week" }
+        ].map(({ key, label }) => (
           <button key={key} onClick={() => setFilterMode(key)} style={{
             padding: "5px 12px", borderRadius: 8, border: "1px solid",
             fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
@@ -273,6 +285,28 @@ function DateWeekFilter({ filterMode, setFilterMode, filterDate, setFilterDate, 
       {filterMode === "date" && (
         <input type="date" className="filter-select" value={filterDate}
           onChange={e => setFilterDate(e.target.value)} style={{ padding: "6px 10px" }} />
+      )}
+      {filterMode === "range" && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="date"
+            className="filter-select"
+            value={filterStartDate || ""}
+            onChange={e => setFilterStartDate(e.target.value)}
+            style={{ padding: "6px 10px" }}
+            title="Start Date"
+          />
+          <span style={{ fontSize: 12, color: "#6b7280" }}>to</span>
+          <input
+            type="date"
+            className="filter-select"
+            value={filterEndDate || ""}
+            min={filterStartDate}
+            onChange={e => setFilterEndDate(e.target.value)}
+            style={{ padding: "6px 10px" }}
+            title="End Date"
+          />
+        </div>
       )}
       {filterMode === "week" && (
         <select className="filter-select" value={filterWeek} onChange={e => setFilterWeek(e.target.value)}>
@@ -352,7 +386,14 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
               cursor: "pointer", fontFamily: "inherit",
             }}
           >Cancel</button>
-          
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "9px 22px", borderRadius: 9, border: "none",
+              background: "#ef4444", color: "white", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >Yes, Delete</button>
         </div>
       </div>
     </div>
@@ -456,7 +497,6 @@ const getWeekBounds = () => {
             padding: "8px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.8)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.06)"
           }}>
-            <img src={logoImg} alt="Company Logo" style={{ width: 44, height: 44, objectFit: "contain", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.12))" }} />
           </div>
         </div>
       </div>
@@ -614,6 +654,8 @@ export function MyTasksPage() {
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState("all");
   const [filterDate, setFilterDate] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
   const [filterWeek, setFilterWeek] = useState(() => getWeekKey());
   const weekOptions = buildWeekOptions();
   const PAGE_SIZE = 15;
@@ -635,6 +677,10 @@ export function MyTasksPage() {
     if (status !== "All") params.status = status;
     if (search) params.search = search;
     if (filterMode === "date" && filterDate) params.date = filterDate;
+    if (filterMode === "range") {
+      if (filterStartDate) params.startDate = filterStartDate;
+      if (filterEndDate)   params.endDate   = filterEndDate;
+    }
     if (filterMode === "week" && filterWeek) params.weekKey = filterWeek;
 
     taskAPI.getAll(params)
@@ -645,10 +691,21 @@ export function MyTasksPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [status, search, user, page, filterMode, filterDate, filterWeek]);
+  }, [status, search, user, page, filterMode, filterDate, filterStartDate, filterEndDate, filterWeek]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [filterMode, filterDate, filterWeek, status, search]);
+  useEffect(() => { setPage(1); }, [filterMode, filterDate, filterStartDate, filterEndDate, filterWeek, status, search]);
+
+  const getDatesInRange = (startDateStr, endDateStr) => {
+    const dates = [];
+    let curr = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    while (curr <= end) {
+      dates.push(curr.toISOString().split("T")[0]);
+      curr.setDate(curr.getDate() + 1);
+    }
+    return dates;
+  };
 
   const handleSave = async (form) => {
     if (!user) return;
@@ -657,10 +714,18 @@ export function MyTasksPage() {
       if (editTask) {
         const d = await taskAPI.update(editTask._id || editTask.id, form);
         setTasks(ts => ts.map(t => (t._id || t.id) === (editTask._id || editTask.id) ? d.task : t));
-        setToast({ msg: "Task updated!", type: "success" });
+        setToast({ msg: form.isLeave ? "Leave day updated!" : "Task updated!", type: "success" });
       } else {
-        await taskAPI.create({ ...form, assignedTo: user._id });
-        setToast({ msg: "Task created!", type: "success" });
+        if (form.isLeave && form.isDateRange && form.endDate && form.endDate > form.date) {
+          const rangeDates = getDatesInRange(form.date, form.endDate);
+          await Promise.all(rangeDates.map(date =>
+            taskAPI.create({ ...form, date, assignedTo: user._id, isLeave: true })
+          ));
+          setToast({ msg: `${rangeDates.length} leave days created!`, type: "success" });
+        } else {
+          await taskAPI.create({ ...form, assignedTo: user._id });
+          setToast({ msg: form.isLeave ? "Leave day marked!" : "Task created!", type: "success" });
+        }
         if (form.isLeave && weekendDates.length > 0) {
           await Promise.all(
             weekendDates.map(date =>
@@ -675,6 +740,19 @@ export function MyTasksPage() {
       setShowModal(false); setEditTask(null);
     } catch (e) { setToast({ msg: e.message, type: "error" }); }
     setSaving(false);
+  };
+
+  const handleDelete = async (taskToDelete) => {
+    const label = taskToDelete.isLeave ? "this leave record" : "this task";
+    const ok = await confirm(`Are you sure you want to delete ${label}?`);
+    if (!ok) return;
+    try {
+      await taskAPI.delete(taskToDelete._id || taskToDelete.id);
+      setToast({ msg: `${taskToDelete.isLeave ? "Leave" : "Task"} deleted successfully!`, type: "success" });
+      load();
+    } catch (e) {
+      setToast({ msg: e.message || "Failed to delete", type: "error" });
+    }
   };
 
   const handleStatus = async (id, newStatus) => {
@@ -750,6 +828,8 @@ export function MyTasksPage() {
             </select>
             <DateWeekFilter filterMode={filterMode} setFilterMode={setFilterMode}
               filterDate={filterDate} setFilterDate={setFilterDate}
+              filterStartDate={filterStartDate} setFilterStartDate={setFilterStartDate}
+              filterEndDate={filterEndDate} setFilterEndDate={setFilterEndDate}
               filterWeek={filterWeek} setFilterWeek={setFilterWeek}
               weekOptions={weekOptions} />
             <span className="text-sm text-gray" style={{ marginLeft: "auto" }}>{totalRecords} records</span>
@@ -814,12 +894,29 @@ export function MyTasksPage() {
                     </td>
                     <td>
                       <div className="flex gap-6">
-                        {!t.isLeave && (
-                          <button className="btn btn-secondary btn-sm btn-icon"
-                            onClick={() => { setEditTask(t); setShowModal(true); }}>✏️</button>
-                        )}
-                     
-                      
+                        <button
+                          className="btn btn-secondary btn-sm btn-icon"
+                          title={t.isLeave ? "Edit Leave" : "Edit Task"}
+                          onClick={() => { setEditTask(t); setShowModal(true); }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm btn-icon"
+                          title={t.isLeave ? "Delete Leave" : "Delete Task"}
+                          style={{
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: 7,
+                            padding: "4px 8px",
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                          onClick={() => handleDelete(t)}
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </td>
                   </tr>
