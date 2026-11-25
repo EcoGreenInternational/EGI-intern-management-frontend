@@ -5,7 +5,8 @@ import TaskModal from "../../components/shared/TaskModal.jsx";
 import SubTaskList from "../../components/shared/SubTaskList.jsx";
 import TaskTimer from "../../components/shared/TaskTimer.jsx";
 import { WeeklyHoursBar } from "../../components/shared/WeeklyHoursCard.jsx";
-import { computeStats, formatMinutes, statusSelectClass, getWeekKey } from "../../utils/helpers";
+import { computeStats, formatMinutes, statusSelectClass, getWeekKey, localISO, leaveDayCount, totalLeaveDays } from "../../utils/helpers";
+import TaskDate from "../../components/shared/TaskDate.jsx";
 import { useAuth } from "../../hooks/useAuth";
 import logoImg from "../../assets/logo.png";
 
@@ -23,7 +24,7 @@ function OverdueRowStyles() {
 
 function overdueRowClass(t) {
   if (t.isLeave) return "leave-row";
-  if (t.status === "To Do" && t.date && t.date < new Date().toISOString().split("T")[0]) {
+  if (t.status === "To Do" && t.date && t.date < localISO()) {
     return "overdue-row";
   }
   return "";
@@ -140,7 +141,7 @@ function getUpcomingWeekends(count = 8) {
     const day = d.getDay();
     if (day === 0 || day === 6) {
       dates.push({
-        value: d.toISOString().split("T")[0],
+        value: localISO(d),
         label: d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }),
         isSat: day === 6,
       });
@@ -183,14 +184,14 @@ function WeekendSelector({ weekendDates, setWeekendDates }) {
   );
 }
 
-function LeaveBadge({ reason }) {
+function LeaveBadge({ reason, days = 1 }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px",
       borderRadius: 99, fontSize: 11, fontWeight: 700,
       background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a",
     }}>
-      🌴 Leave Day{reason ? ` — ${reason}` : ""}
+      🌴 {days > 1 ? `Leave · ${days} days` : "Leave Day"}{reason ? ` — ${reason}` : ""}
     </span>
   );
 }
@@ -223,7 +224,7 @@ function weekKeyToRange(wk) {
   start.setDate(jan1Sunday.getDate() + (week - 1) * 7);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const fmt = d => d.toISOString().split("T")[0];
+  const fmt = d => localISO(d);
   return { start: fmt(start), end: fmt(end) };
 }
 
@@ -423,7 +424,7 @@ export function SupervisorDashboard({ setPage }) {
         }
 
         const allMeetings = meetRes?.meetings || [];
-        const todayStr = new Date().toISOString().split("T")[0];
+        const todayStr = localISO();
         const upcoming = allMeetings
           .filter(m => m.status !== 'cancelled' && m.date && m.date >= todayStr)
           .sort((a, b) => {
@@ -442,7 +443,7 @@ export function SupervisorDashboard({ setPage }) {
 
   const myNonLeave = myTasks.filter(t => !t.isLeave);
   const { total: myTotal, done: myDone, inProgress: myInProgress } = computeStats(myNonLeave);
-  const myLeaveDays = myTasks.filter(t => t.isLeave).length;
+  const myLeaveDays = totalLeaveDays(myTasks.filter(t => t.isLeave));
 
   // Week = Sunday → Saturday
   const nowW = new Date();
@@ -922,24 +923,15 @@ export function MyTasksPageSupervisor() {
         setTasks(ts => ts.map(t => (t._id || t.id) === (editTask._id || editTask.id) ? d.task : t));
         setToast({ msg: form.isLeave ? "Leave updated!" : "Task updated!", type: "success" });
       } else {
-        if (form.isLeave && form.isDateRange && form.endDate && form.endDate > form.date) {
-          const dates = [];
-          let curr = new Date(form.date);
-          const end = new Date(form.endDate);
-          while (curr <= end) {
-            dates.push(curr.toISOString().split("T")[0]);
-            curr.setDate(curr.getDate() + 1);
-          }
-          await Promise.all(dates.map(date => taskAPI.create({ ...taskForm, date, isLeave: true })));
-          setToast({ msg: `${dates.length} leave days created!`, type: "success" });
-        } else {
-          await taskAPI.create(taskForm);
-          setToast({ msg: form.isLeave ? "Leave marked!" : "Task created!", type: "success" });
+        // A date range is saved as ONE leave entry (leaveEndDate comes from TaskModal).
+        await taskAPI.create(taskForm);
+        const days = leaveDayCount(form);
+        setToast({ msg: form.isLeave ? (days > 1 ? `Leave marked (${days} days)!` : "Leave marked!") : "Task created!", type: "success" });
+        const extraWeekends = form.isLeave ? weekendDates.filter(d => d < form.date || d > (form.leaveEndDate || form.date)) : [];
+        if (extraWeekends.length > 0) {
+          await Promise.all(extraWeekends.map(date => taskAPI.create({ ...taskForm, date, leaveEndDate: "", isLeave: true })));
         }
-        if (form.isLeave && weekendDates.length > 0) {
-          await Promise.all(weekendDates.map(date => taskAPI.create({ ...taskForm, date, isLeave: true })));
-          setWeekendDates([]);
-        }
+        setWeekendDates([]);
         load();
       }
       setShowModal(false); setEditTask(null);
@@ -1030,11 +1022,11 @@ export function MyTasksPageSupervisor() {
               <tbody>
                 {tasks.map(t => (
                   <tr key={t._id || t.id} className={overdueRowClass(t)}>
-                    <td className="text-sm text-gray">{t.date}</td>
+                    <td className="text-sm text-gray"><TaskDate task={t} /></td>
                     <td>{t.isLeave ? "—" : <span className="tag">{t.project}</span>}</td>
                     <td className="text-sm" style={{ maxWidth: 220 }}>
                       {t.isLeave
-                        ? <LeaveBadge reason={t.leaveReason} />
+                        ? <LeaveBadge reason={t.leaveReason} days={leaveDayCount(t)} />
                         : <><div style={{ marginBottom: 4 }}><TextWithLinks text={t.task} /></div><SubTaskList task={t} currentUser={user} onTaskUpdated={handleTaskUpdated} /></>
                       }
                     </td>
@@ -1174,25 +1166,16 @@ export function AllTasksPage() {
         setAllTasks(ts => ts.map(t => (t._id || t.id) === (editTask._id || editTask.id) ? d.task : t));
         setToast({ msg: form.isLeave ? "Leave updated!" : "Task updated!", type: "success" });
       } else {
-        if (form.isLeave && form.isDateRange && form.endDate && form.endDate > form.date) {
-          const dates = [];
-          let curr = new Date(form.date);
-          const end = new Date(form.endDate);
-          while (curr <= end) {
-            dates.push(curr.toISOString().split("T")[0]);
-            curr.setDate(curr.getDate() + 1);
-          }
-          await Promise.all(dates.map(date => taskAPI.create({ ...form, date, isLeave: true })));
-          setToast({ msg: `${dates.length} leave days created!`, type: "success" });
-        } else {
-          await taskAPI.create(form);
-          setToast({ msg: form.isLeave ? "Leave day marked!" : "Task assigned!", type: "success" });
+        // A date range is saved as ONE leave entry (leaveEndDate comes from TaskModal).
+        await taskAPI.create(form);
+        const days = leaveDayCount(form);
+        setToast({ msg: form.isLeave ? (days > 1 ? `Leave marked (${days} days)!` : "Leave day marked!") : "Task assigned!", type: "success" });
+        const extraWeekends = form.isLeave ? weekendDates.filter(d => d < form.date || d > (form.leaveEndDate || form.date)) : [];
+        if (extraWeekends.length > 0) {
+          await Promise.all(extraWeekends.map(date => taskAPI.create({ ...form, date, leaveEndDate: "", isLeave: true })));
+          setToast({ msg: `Leave + ${extraWeekends.length} weekend day(s) saved!`, type: "success" });
         }
-        if (form.isLeave && weekendDates.length > 0) {
-          await Promise.all(weekendDates.map(date => taskAPI.create({ ...form, date, isLeave: true })));
-          setToast({ msg: `Leave + ${weekendDates.length} weekend day(s) saved!`, type: "success" });
-          setWeekendDates([]);
-        }
+        setWeekendDates([]);
         load();
       }
       setShowModal(false); setEditTask(null);
@@ -1422,11 +1405,11 @@ export function AllTasksPage() {
               <tbody>
                 {tasks.map(t => (
                   <tr key={t._id || t.id} className={overdueRowClass(t)}>
-                    <td className="text-sm text-gray">{t.date}</td>
+                    <td className="text-sm text-gray"><TaskDate task={t} /></td>
                     <td>{t.isLeave ? "—" : <span className="tag">{t.project}</span>}</td>
                     <td className="text-sm" style={{ maxWidth: 200 }}>
                       {t.isLeave
-                        ? <LeaveBadge reason={t.leaveReason} />
+                        ? <LeaveBadge reason={t.leaveReason} days={leaveDayCount(t)} />
                         : <><div style={{ marginBottom: 4 }}><TextWithLinks text={t.task} /></div><SubTaskList task={t} currentUser={user} onTaskUpdated={handleTaskUpdated} /></>
                       }
                     </td>

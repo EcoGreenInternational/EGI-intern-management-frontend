@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { userAPI, projectAPI } from "../../utils/api";
-import { todayISO } from "../../utils/helpers";
+import { todayISO, isLeaveRange, leaveDayCount } from "../../utils/helpers";
 import { useAuth } from "../../hooks/useAuth";
 
 const STATUSES = ["To Do", "In Progress", "Done", "Hold"];
@@ -14,7 +14,12 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
 
   const [form, setForm] = useState(
     task
-      ? { ...task, assignedTo: task.assignedTo?._id || task.assignedTo || "", endDate: task.date || todayISO(), isDateRange: false }
+      ? {
+          ...task,
+          assignedTo:  task.assignedTo?._id || task.assignedTo || "",
+          endDate:     isLeaveRange(task) ? task.leaveEndDate : (task.date || todayISO()),
+          isDateRange: isLeaveRange(task),
+        }
       : {
           date:         todayISO(),
           endDate:      todayISO(),
@@ -62,8 +67,14 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
     }));
   };
 
+  // A leave date range is saved as ONE entry (date … leaveEndDate).
+  const rangeEnd = isLeaveMode && form.isDateRange && form.endDate && form.endDate > form.date ? form.endDate : "";
+  const rangeInvalid = isLeaveMode && form.isDateRange && form.endDate && form.endDate < form.date;
+  const rangeDays = leaveDayCount({ isLeave: true, date: form.date, leaveEndDate: rangeEnd });
+
   const handleSave = () => {
-    const payload = { ...form, isLeave: isLeaveMode };
+    const { endDate, isDateRange, ...rest } = form;
+    const payload = { ...rest, isLeave: isLeaveMode, leaveEndDate: rangeEnd };
     if (isLeaveMode) {
       payload.task         = form.leaveReason || "Leave Day";
       payload.totalMinutes = 0;
@@ -73,7 +84,7 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
   };
 
   const canSubmit = isLeaveMode
-    ? (isSupervisor ? !!form.assignedTo : true) && !!form.date
+    ? (isSupervisor ? !!form.assignedTo : true) && !!form.date && !rangeInvalid
     : !!form.task?.trim() && (isSupervisor ? !!form.assignedTo : true);
 
   return (
@@ -122,7 +133,7 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
           )}
 
           <div className="form-grid">
-            {isLeaveMode && !task ? (
+            {isLeaveMode ? (
               <div className="form-group full">
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                   <label className="form-label" style={{ margin: 0 }}>Date Selection</label>
@@ -145,6 +156,11 @@ export default function TaskModal({ task, currentUser = {}, onClose, onSave, loa
                     <div>
                       <label style={{ fontSize: 11, color: "var(--gray-500)", display: "block", marginBottom: 3 }}>To Date</label>
                       <input className="form-input" type="date" value={form.endDate || form.date} min={form.date} onChange={e => set("endDate", e.target.value)} />
+                    </div>
+                    <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 600, color: rangeInvalid ? "#dc2626" : "#92400e" }}>
+                      {rangeInvalid
+                        ? "The end date cannot be before the start date."
+                        : `${rangeDays} day${rangeDays > 1 ? "s" : ""} — saved as one leave entry`}
                     </div>
                   </div>
                 ) : (
