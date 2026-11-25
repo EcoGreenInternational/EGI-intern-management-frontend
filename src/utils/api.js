@@ -1,5 +1,8 @@
 const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
+// Base URL for pages that build their own fetch calls (e.g. SocialPage).
+export const API_BASE = BASE.replace(/\/+$/, "");
+
 export const getToken   = ()  => localStorage.getItem("egi_token");
 export const setToken   = (t) => localStorage.setItem("egi_token", t);
 export const clearToken = ()  => localStorage.removeItem("egi_token");
