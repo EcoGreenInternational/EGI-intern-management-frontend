@@ -15,6 +15,18 @@ export function resolveImageUrl(p) {
   return `${IMAGE_BASE}${p.startsWith("/") ? "" : "/"}${p}`;
 }
 
+// Parse a JSON response; error pages (e.g. a proxy's HTML "413 Request Entity
+// Too Large") become a readable Error instead of "Unexpected token <".
+async function readJson(res, fallbackMessage) {
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = data?.message
+      || (res.status === 413 ? "File is too large." : `${fallbackMessage} (error ${res.status}).`);
+    throw new Error(msg);
+  }
+  return data || {};
+}
+
 async function request(path, options = {}) {
   const token   = getToken();
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -75,11 +87,8 @@ export const userAPI = {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
-    }).then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
-      return data;
-    });
+    }).then(res => readJson(res, "Upload failed"))
+      .catch(err => { throw new Error(err.message === "Failed to fetch" ? "Could not reach the server. Check your connection." : err.message); });
   },
   deleteProfilePicture: (id) => request(`/users/${id}/profile-picture`, { method: "DELETE" }),
 
@@ -91,11 +100,8 @@ export const userAPI = {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
-    }).then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
-      return data;
-    });
+    }).then(res => readJson(res, "Upload failed"))
+      .catch(err => { throw new Error(err.message === "Failed to fetch" ? "Could not reach the server. Check your connection." : err.message); });
   },
   deleteDocument: (id, docType) => request(`/users/${id}/documents/${docType}`, { method: "DELETE" }),
 };
