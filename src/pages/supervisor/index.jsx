@@ -463,8 +463,8 @@ export function SupervisorDashboard({ setPage }) {
 
   if (!user || loading) return <div style={{ padding: 60, textAlign: "center" }}><div className="spinner" /></div>;
 
-  const pendingApprovalsCount = myTasks.filter(t => t.status === "To Do" || t.status === "Hold").length || 3;
-  const completionRate = myTotal ? Math.round((myDone / myTotal) * 100) : 100;
+  const pendingApprovalsCount = myNonLeave.filter(t => t.status === "To Do" || t.status === "Hold").length;
+  const completionRate = myTotal ? Math.round((myDone / myTotal) * 100) : 0;
 
   return (
     <div className="animate-fadeUp">
@@ -475,7 +475,7 @@ export function SupervisorDashboard({ setPage }) {
         <div className="egi-greeting-left">
           <div className="egi-greeting-salutation">Good Morning,</div>
           <div className="egi-greeting-name">
-            {user?.name || "Miss. Raveesha"}
+            {user?.name || "there"}
             <span style={{ fontSize: 22 }}>🍃</span>
           </div>
           <div className="egi-greeting-sub">
@@ -509,7 +509,7 @@ export function SupervisorDashboard({ setPage }) {
             </div>
             <span className="egi-stat-arrow">→</span>
           </div>
-          <div className="egi-stat-value">{myTotal || 99}</div>
+          <div className="egi-stat-value">{myTotal}</div>
           <div className="egi-stat-title">My Total Tasks</div>
           <div className="egi-stat-subtitle">All time</div>
           <svg className="egi-stat-wave-bg" viewBox="0 0 100 100" fill="#10b981">
@@ -527,7 +527,7 @@ export function SupervisorDashboard({ setPage }) {
             </div>
             <span className="egi-stat-arrow">→</span>
           </div>
-          <div className="egi-stat-value">{myDone || 99}</div>
+          <div className="egi-stat-value">{myDone}</div>
           <div className="egi-stat-title">My Completed</div>
           <div className="egi-stat-subtitle" style={{ color: "#16a34a", fontWeight: 700 }}>
             ↑ {completionRate}% rate
@@ -547,7 +547,7 @@ export function SupervisorDashboard({ setPage }) {
             </div>
             <span className="egi-stat-arrow">→</span>
           </div>
-          <div className="egi-stat-value">{myLeaveDays || 18}</div>
+          <div className="egi-stat-value">{myLeaveDays}</div>
           <div className="egi-stat-title">My Leave Days</div>
           <div className="egi-stat-subtitle">All time</div>
           <svg className="egi-stat-wave-bg" viewBox="0 0 100 100" fill="#f59e0b">
