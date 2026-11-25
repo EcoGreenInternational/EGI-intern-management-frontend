@@ -58,7 +58,7 @@ export default function InternLoginPage({ onBack }) {
       {/* Modern Top Header */}
       <header className="egi-landing-header">
         <div className="egi-landing-brand" onClick={onBack} style={{ cursor: onBack ? "pointer" : "default" }}>
-          <img src={companyLogo} alt="House of Cambridge Logo" className="egi-landing-brand-logo" />
+          <img src={companyLogo} alt="Eco Green International logo" className="egi-landing-brand-logo" />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div className="egi-landing-tagline">
@@ -184,7 +184,7 @@ export default function InternLoginPage({ onBack }) {
       <footer className="egi-landing-footer">
         <div className="egi-landing-footer-left" />
         <div className="egi-landing-footer-center">
-          © 2026 House of Cambridge Pvt Ltd
+          © {new Date().getFullYear()} Eco Green International
         </div>
         <div className="egi-landing-footer-right">
           <span>Privacy Policy</span>

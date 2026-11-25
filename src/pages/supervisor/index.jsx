@@ -840,7 +840,7 @@ export function SupervisorDashboard({ setPage }) {
           <div className="egi-eco-motto-banner">
             <div>
               <div className="egi-eco-motto-title">Excellence in<br />Professional Learning</div>
-              <div className="egi-eco-motto-sub">House of Cambridge</div>
+              <div className="egi-eco-motto-sub">Eco Green International</div>
             </div>
             <svg width="70" height="70" viewBox="0 0 100 100" fill="#10b981" style={{ opacity: 0.35 }}>
               <path d="M50 0 C75 25 90 60 70 85 C55 100 25 95 15 80 C0 60 20 20 50 0 Z"/>
