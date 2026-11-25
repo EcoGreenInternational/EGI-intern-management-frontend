@@ -1,11 +1,44 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { CheckCircleIcon, TrashIcon, FolderIcon } from "../../components/shared/Icons.jsx";
+import { diaryAPI } from "../../utils/api";
 
+// Entries are stored per user on the server (/api/diary).
+// The old diary kept everything in this browser-only key, shared by everyone
+// who used the browser. It is only read now, to offer a one-time import.
+const LEGACY_DIARY_KEY = "egi_diary_v2";
+const readLegacyEntries = () => {
+  try {
+    const list = JSON.parse(localStorage.getItem(LEGACY_DIARY_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+};
+const clearLegacyEntries = () => { try { localStorage.removeItem(LEGACY_DIARY_KEY); } catch { /* ignore */ } };
 
-const DIARY_KEY = "egi_diary_v2";
-const DB = {
-  load: () => { try { return JSON.parse(localStorage.getItem(DIARY_KEY) || "[]"); } catch { return []; } },
-  save: (d) => localStorage.setItem(DIARY_KEY, JSON.stringify(d)),
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // must match the backend limit
+
+// Server entries use _id; the UI works with "id".
+const norm       = (e) => ({ ...e, id: e._id || e.id });
+const byDateDesc = (list) => [...list].sort((a,b) => (b.date||"").localeCompare(a.date||""));
+
+const dataUrlToBlob = (dataUrl) => {
+  const [head, b64 = ""] = String(dataUrl).split(",");
+  const mime = (head.match(/data:([^;]+)/) || [])[1] || "application/octet-stream";
+  const bin  = atob(b64);
+  const arr  = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+};
+
+// Browsers block opening data: URLs in a new tab, so legacy (base64) files are
+// opened through a temporary blob URL; uploaded files open their Cloudinary URL.
+const attachmentSrc  = (f) => f?.url || f?.data || "";
+const openAttachment = (f) => {
+  if (f?.url) { window.open(f.url, "_blank", "noopener,noreferrer"); return; }
+  if (f?.data) {
+    const blobUrl = URL.createObjectURL(dataUrlToBlob(f.data));
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  }
 };
 
 
@@ -33,7 +66,10 @@ function getFileType(name = "") {
 }
 const isImg = (n = "") => ["jpg","jpeg","png","gif","webp","svg","bmp"].includes((n.split(".").pop()||"").toLowerCase());
 const fmtBytes = (b = 0) => b < 1024 ? b+"B" : b < 1048576 ? (b/1024).toFixed(1)+"KB" : (b/1048576).toFixed(1)+"MB";
-const todayStr = () => new Date().toISOString().split("T")[0];
+// Local calendar date (toISOString() is UTC and gives yesterday before 05:30 in Sri Lanka).
+const localISO = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayStr = () => localISO();
 const fmtDate = (s) => {
   if (!s) return "";
   return new Date(s + "T00:00:00").toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
@@ -119,7 +155,7 @@ function MoodPicker({ value, onChange }) {
 function ImgTile({ file, onRemove }) {
   return (
     <div style={{ position:"relative", borderRadius:12, overflow:"hidden", width:100, height:100, flexShrink:0, boxShadow:"0 2px 8px rgba(0,0,0,.12)" }}>
-      <img src={file.data} alt={file.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+      <img src={attachmentSrc(file)} alt={file.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,.55) 0%, transparent 50%)" }} />
       <div style={{ position:"absolute", bottom:4, left:6, right:22, fontSize:8, color:"#fff", fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{file.name}</div>
       {onRemove && (
@@ -232,7 +268,7 @@ function MiniCalendar({ entries, selected, onSelect }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function Analytics({ entries }) {
   const total      = entries.length;
-  const thisMonth  = entries.filter(e => e.date?.startsWith(new Date().toISOString().slice(0,7))).length;
+  const thisMonth  = entries.filter(e => e.date?.startsWith(todayStr().slice(0,7))).length;
   const totalWords = entries.reduce((s,e) => s + (e.content?.trim().split(/\s+/).filter(Boolean).length||0), 0);
   const totalFiles = entries.reduce((s,e) => s + ((e.attachments||[]).length), 0);
 
@@ -240,7 +276,7 @@ function Analytics({ entries }) {
   let streak = 0;
   for (let i = 0; i < 365; i++) {
     const d = new Date(); d.setDate(d.getDate()-i);
-    if (entries.find(e => e.date === d.toISOString().split("T")[0])) streak++;
+    if (entries.find(e => e.date === localISO(d))) streak++;
     else if (i > 0) break;
   }
 
@@ -421,6 +457,10 @@ function EntryEditor({ entry, onSave, onClose }) {
   const [tagInput, setTagInput] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [saving,   setSaving]   = useState(false);
+  const [uploading, setUploading] = useState(0);
+  const [error,    setError]    = useState("");
+  // publicIds uploaded while this editor is open — discarded again on Cancel/remove
+  const sessionUploads = useRef(new Set());
   const fileRef  = useRef(null);
   const areaRef  = useRef(null);
 
@@ -434,26 +474,56 @@ function EntryEditor({ entry, onSave, onClose }) {
     setTagInput("");
   };
 
+  // Files are uploaded to the server straight away (no more base64 in localStorage).
   const readFiles = (fileList) => {
-    Array.from(fileList).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => setForm(f => ({
-        ...f,
-        attachments: [...f.attachments, { name:file.name, size:file.size, type:file.type, data:ev.target.result }],
-      }));
-      reader.readAsDataURL(file);
+    setError("");
+    Array.from(fileList).forEach(async (file) => {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setError(`"${file.name}" is larger than 10 MB and was not attached.`);
+        return;
+      }
+      setUploading(n => n + 1);
+      try {
+        const { attachment } = await diaryAPI.uploadAttachment(file);
+        sessionUploads.current.add(attachment.publicId);
+        setForm(f => ({ ...f, attachments: [...f.attachments, attachment] }));
+      } catch (e) {
+        setError(e.message || `Could not upload "${file.name}".`);
+      } finally {
+        setUploading(n => n - 1);
+      }
     });
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const discardUpload = (att) => {
+    if (att?.publicId && sessionUploads.current.has(att.publicId)) {
+      sessionUploads.current.delete(att.publicId);
+      diaryAPI.discardAttachment(att).catch(() => {});
+    }
+  };
+
   const handleDrop = (e) => { e.preventDefault(); setDragOver(false); readFiles(e.dataTransfer.files); };
-  const removeAttach = (i) => set("attachments", form.attachments.filter((_,j)=>j!==i));
+  const removeAttach = (i) => {
+    discardUpload(form.attachments[i]);
+    set("attachments", form.attachments.filter((_,j)=>j!==i));
+  };
+
+  const cancel = () => {
+    form.attachments.forEach(discardUpload);
+    onClose();
+  };
 
   const handleSave = async () => {
     setSaving(true);
-    await new Promise(r => setTimeout(r, 200));
-    onSave(form);
-    setSaving(false);
+    setError("");
+    try {
+      await onSave(form);
+      sessionUploads.current.clear();
+    } catch (e) {
+      setError(e.message || "Could not save the entry. Please try again.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -463,7 +533,7 @@ function EntryEditor({ entry, onSave, onClose }) {
       backdropFilter:"blur(6px)",
       display:"flex", alignItems:"center", justifyContent:"center",
       zIndex:9999, padding:20,
-    }} onClick={e => e.target===e.currentTarget && onClose()}>
+    }} onClick={e => e.target===e.currentTarget && cancel()}>
       <div style={{
         background:"#fff",
         borderRadius:24,
@@ -490,7 +560,7 @@ function EntryEditor({ entry, onSave, onClose }) {
               {entry?.id ? "Make changes to your diary entry" : "Record your thoughts for today"}
             </div>
           </div>
-          <button onClick={onClose} style={{ width:34, height:34, borderRadius:10, border:"1.5px solid #e2e8f0", background:"#f8fafc", cursor:"pointer", fontSize:16, color:"#64748b", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          <button onClick={cancel} style={{ width:34, height:34, borderRadius:10, border:"1.5px solid #e2e8f0", background:"#f8fafc", cursor:"pointer", fontSize:16, color:"#64748b", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
         </div>
 
         <div style={{ padding:"24px 28px", display:"flex", flexDirection:"column", gap:20 }}>
@@ -605,7 +675,7 @@ function EntryEditor({ entry, onSave, onClose }) {
               <div style={{ fontSize:13, fontWeight:600, color: dragOver ? "#16a34a" : "#475569" }}>
                 {dragOver ? "Release to attach files" : "Click to browse or drag & drop"}
               </div>
-              <div style={{ fontSize:11, color:"#94a3b8", marginTop:4 }}>Images · PDFs · Word · Excel · Videos · Audio · Any type</div>
+              <div style={{ fontSize:11, color:"#94a3b8", marginTop:4 }}>Images · PDFs · Word · Excel · Videos · Audio · Any type · max 10 MB each</div>
             </div>
 
             {/* Image previews */}
@@ -629,6 +699,11 @@ function EntryEditor({ entry, onSave, onClose }) {
                 {form.attachments.length} file{form.attachments.length>1?"s":""} attached
               </div>
             )}
+            {uploading > 0 && (
+              <div style={{ fontSize:11, color:"#16a34a", fontWeight:600, marginTop:8 }}>
+                Uploading {uploading} file{uploading>1?"s":""}…
+              </div>
+            )}
           </div>
         </div>
 
@@ -640,17 +715,20 @@ function EntryEditor({ entry, onSave, onClose }) {
           position:"sticky", bottom:0, background:"#fff",
           borderRadius:"0 0 24px 24px",
         }}>
-          <button onClick={onClose} style={{ padding:"10px 24px", borderRadius:11, border:"1.5px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} style={{
+          <button onClick={cancel} style={{ padding:"10px 24px", borderRadius:11, border:"1.5px solid #e2e8f0", background:"#f8fafc", color:"#475569", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+          {error && (
+            <div style={{ marginRight:"auto", alignSelf:"center", fontSize:12, color:"#e11d48", fontWeight:600 }}>{error}</div>
+          )}
+          <button onClick={handleSave} disabled={saving || uploading > 0} style={{
             padding:"10px 28px", borderRadius:11, border:"none",
-            background: saving ? "#86efac" : "linear-gradient(135deg,#16a34a,#15803d)",
+            background: (saving || uploading > 0) ? "#86efac" : "linear-gradient(135deg,#16a34a,#15803d)",
             color:"#fff", fontSize:13, fontWeight:700,
-            cursor: saving ? "default" : "pointer",
+            cursor: (saving || uploading > 0) ? "default" : "pointer",
             fontFamily:"inherit",
             boxShadow:"0 4px 14px rgba(22,163,74,.3)",
             transition:"all .15s",
           }}>
-            {saving ? "Saving…" : entry?.id ? "Save Changes" : "Save Entry"}
+            {saving ? "Saving…" : uploading > 0 ? "Uploading…" : entry?.id ? "Save Changes" : "Save Entry"}
           </button>
         </div>
       </div>
@@ -671,7 +749,7 @@ function EntryDetail({ entry, onEdit, onDelete }) {
   );
 
   const attachments = entry.attachments || entry.images || [];
-  const dlFile = (f) => { const a = document.createElement("a"); a.href=f.data; a.download=f.name; a.click(); };
+  const dlFile = (f) => openAttachment(f);
 
   return (
     <div style={{ padding:"28px 32px", height:"100%", overflowY:"auto" }}>
@@ -728,8 +806,8 @@ function EntryDetail({ entry, onEdit, onDelete }) {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))", gap:10, marginBottom:14 }}>
               {attachments.filter(f=>isImg(f.name)).map((f,i) => (
                 <div key={i} style={{ borderRadius:12, overflow:"hidden", aspectRatio:"1", boxShadow:"0 2px 10px rgba(0,0,0,.10)", cursor:"pointer" }}
-                  onClick={() => window.open(f.data,"_blank")} title="Click to open full size">
-                  <img src={f.data} alt={f.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  onClick={() => openAttachment(f)} title="Click to open full size">
+                  <img src={attachmentSrc(f)} alt={f.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                 </div>
               ))}
             </div>
@@ -753,7 +831,11 @@ function EntryDetail({ entry, onEdit, onDelete }) {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export function DiaryPage() {
-  const [entries,       setEntries]       = useState(() => DB.load());
+  const [entries,       setEntries]       = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState("");
+  const [legacyEntries, setLegacyEntries] = useState(() => readLegacyEntries());
+  const [importing,     setImporting]     = useState(false);
   const [showEditor,    setShowEditor]    = useState(false);
   const [editEntry,     setEditEntry]     = useState(null);
   const [selectedDate,  setSelectedDate]  = useState(todayStr());
@@ -763,30 +845,100 @@ export function DiaryPage() {
   const [toast,         setToast]         = useState(null);
   const [deleteId,      setDeleteId]      = useState(null);
 
-  useEffect(() => { DB.save(entries); }, [entries]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const d = await diaryAPI.list();
+      setEntries(byDateDesc((d.entries || []).map(norm)));
+    } catch (e) {
+      setLoadError(e.message || "Could not load your diary.");
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const save = (form) => {
+  // Errors are thrown back to the editor so it can show them and stay open.
+  const save = async (form) => {
+    const payload = {
+      date: form.date, title: form.title || "", content: form.content || "",
+      mood: form.mood || "", tags: form.tags || [], attachments: form.attachments || [],
+    };
     if (form.id) {
-      setEntries(es => es.map(e => e.id===form.id ? form : e));
+      const d = await diaryAPI.update(form.id, payload);
+      setEntries(es => byDateDesc(es.map(e => e.id===form.id ? norm(d.entry) : e)));
       setToast({ msg:"Entry updated", ok:true });
     } else {
-      const ne = { ...form, id: Date.now().toString() };
-      setEntries(es => [ne,...es].sort((a,b)=>b.date.localeCompare(a.date)));
+      const d = await diaryAPI.create(payload);
+      setEntries(es => byDateDesc([norm(d.entry), ...es]));
       setToast({ msg:"Entry saved", ok:true });
     }
     setShowEditor(false);
     setEditEntry(null);
   };
 
-  const del = (id) => {
-    setEntries(es => es.filter(e => e.id!==id));
+  const del = async (id) => {
+    try {
+      await diaryAPI.remove(id);
+      setEntries(es => es.filter(e => e.id!==id));
+      setToast({ msg:"Entry deleted", ok:false });
+    } catch (e) {
+      setToast({ msg: e.message || "Could not delete the entry", ok:false });
+    }
     setDeleteId(null);
-    setToast({ msg:"Entry deleted", ok:false });
+  };
+
+  // One-time import of entries from the old browser-only diary.
+  const importLegacy = async () => {
+    setImporting(true);
+    const alreadyImported = new Set(entries.map(e => e.legacyId).filter(Boolean));
+    let imported = 0, failed = 0, skippedFiles = 0;
+
+    for (const old of legacyEntries) {
+      const legacyId = old?.id ? String(old.id) : "";
+      if (legacyId && alreadyImported.has(legacyId)) continue;
+      try {
+        const attachments = [];
+        for (const f of [...(old.attachments || []), ...(old.images || [])]) {
+          if (!f?.data) continue;
+          try {
+            const blob = dataUrlToBlob(f.data);
+            if (blob.size > MAX_ATTACHMENT_BYTES) { skippedFiles++; continue; }
+            const file = new File([blob], f.name || "attachment", { type: f.type || blob.type });
+            const { attachment } = await diaryAPI.uploadAttachment(file);
+            attachments.push(attachment);
+          } catch { skippedFiles++; }
+        }
+        await diaryAPI.create({
+          date: old.date || todayStr(), title: old.title || "", content: old.content || "",
+          mood: old.mood || "", tags: old.tags || [], attachments,
+          legacyId: legacyId || undefined,
+        });
+        imported++;
+      } catch { failed++; }
+    }
+
+    if (failed === 0) { clearLegacyEntries(); setLegacyEntries([]); }
+    await load();
+    setImporting(false);
+    setToast({
+      ok: failed === 0,
+      msg: failed
+        ? `Imported ${imported}, ${failed} failed — try again`
+        : `Imported ${imported} entr${imported===1?"y":"ies"}${skippedFiles ? ` (${skippedFiles} file(s) skipped)` : ""}`,
+    });
+  };
+
+  const dismissLegacy = () => {
+    if (!window.confirm("Remove the old diary entries stored in this browser? They will not be imported into your account.")) return;
+    clearLegacyEntries();
+    setLegacyEntries([]);
   };
 
   const openNew  = () => { setEditEntry({ date:selectedDate }); setShowEditor(true); };
@@ -939,13 +1091,35 @@ export function DiaryPage() {
               My Diary
             </div>
             <div style={{ fontSize:13, color:"#94a3b8" }}>
-              {entries.length} {entries.length===1?"entry":"entries"} · Private &amp; personal
+              {loading ? "Loading…" : <>{entries.length} {entries.length===1?"entry":"entries"} · Private &amp; personal</>}
             </div>
           </div>
           <button className="new-entry-btn" onClick={openNew}>
             + New Entry
           </button>
         </div>
+
+        {/* ── Load error ── */}
+        {loadError && (
+          <div style={{ marginBottom:16, padding:"12px 16px", borderRadius:12, background:"#fff1f2", border:"1.5px solid #fecdd3", color:"#be123c", fontSize:13, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+            <span>{loadError}</span>
+            <button onClick={load} style={{ padding:"6px 14px", borderRadius:9, border:"1px solid #fecdd3", background:"#fff", color:"#be123c", fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Retry</button>
+          </div>
+        )}
+
+        {/* ── Old browser-only diary found: offer import ── */}
+        {!loading && !loadError && legacyEntries.length > 0 && (
+          <div style={{ marginBottom:16, padding:"14px 16px", borderRadius:12, background:"#f0fdf4", border:"1.5px solid #bbf7d0", color:"#166534", fontSize:13, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+            <span>
+              Found <strong>{legacyEntries.length}</strong> diary entr{legacyEntries.length===1?"y":"ies"} saved only in this browser by the old diary.
+              Import them into your account, or remove them if they belong to someone else who used this browser.
+            </span>
+            <span style={{ display:"flex", gap:8 }}>
+              <button onClick={dismissLegacy} disabled={importing} style={{ padding:"7px 14px", borderRadius:9, border:"1px solid #bbf7d0", background:"#fff", color:"#475569", fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>Not mine — remove</button>
+              <button onClick={importLegacy} disabled={importing} style={{ padding:"7px 16px", borderRadius:9, border:"none", background:"#16a34a", color:"#fff", fontWeight:700, cursor: importing ? "default" : "pointer", fontFamily:"inherit" }}>{importing ? "Importing…" : "Import to my account"}</button>
+            </span>
+          </div>
+        )}
 
         {/* ── Main layout ── */}
         <div style={{ display:"grid", gridTemplateColumns:"280px 1fr 340px", gap:20, alignItems:"start" }}>

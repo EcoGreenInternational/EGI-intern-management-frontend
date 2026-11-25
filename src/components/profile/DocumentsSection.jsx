@@ -14,9 +14,23 @@ import { userAPI } from "../../utils/api.js";
 import { FileTextIcon, ClipboardIcon, FolderIcon } from "../shared/Icons.jsx";
 
 const DOC_META = {
-  cv:             { label: "Curriculum Vitae (CV)",         icon: <FileTextIcon size={22} color="#059669" />, accept: ".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" },
-  policeReport:   { label: "Police Report",                 icon: <FileTextIcon size={22} color="#2563eb" />, accept: ".pdf,.jpg,.jpeg,.png,.webp" },
-  gramaNiladhari: { label: "Grama Niladhari Report",        icon: <ClipboardIcon size={22} color="#b45309" />, accept: ".pdf,.jpg,.jpeg,.png,.webp" },
+  cv:             { label: "Curriculum Vitae (CV)",         icon: <FileTextIcon size={22} color="#059669" />, accept: ".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp", formats: "PDF, Word, JPG, PNG or WEBP" },
+  policeReport:   { label: "Police Report",                 icon: <FileTextIcon size={22} color="#2563eb" />, accept: ".pdf,.jpg,.jpeg,.png,.webp",           formats: "PDF, JPG, PNG or WEBP" },
+  gramaNiladhari: { label: "Grama Niladhari Report",        icon: <ClipboardIcon size={22} color="#b45309" />, accept: ".pdf,.jpg,.jpeg,.png,.webp",           formats: "PDF, JPG, PNG or WEBP" },
+};
+
+const MAX_MB = 20; // must match the backend limit
+
+// Check the file in the browser first, so the user gets an instant, clear message.
+const validateFile = (file, meta) => {
+  const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+  if (!meta.accept.split(",").includes(ext))
+    return `"${file.name}" is not a supported file. Please upload ${meta.formats}.`;
+  if (file.size > MAX_MB * 1024 * 1024)
+    return `"${file.name}" is ${(file.size / 1048576).toFixed(1)} MB. The maximum is ${MAX_MB} MB.`;
+  if (file.size === 0)
+    return `"${file.name}" is empty.`;
+  return null;
 };
 
 function DocCard({ docType, docData, userId, onUpdated, setToast }) {
@@ -31,6 +45,8 @@ function DocCard({ docType, docData, userId, onUpdated, setToast }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    const problem = validateFile(file, meta);
+    if (problem) { setToast({ msg: problem, type: "error" }); return; }
     setBusy(true);
     try {
       const d = await userAPI.uploadDocument(userId, docType, file);
@@ -94,6 +110,14 @@ function DocCard({ docType, docData, userId, onUpdated, setToast }) {
               <span style={{ fontSize: 11, color: "#94a3b8" }}>{uploadedAt}</span>
             )}
           </div>
+          {uploaded && docData.fileName && (
+            <div title={docData.fileName} style={{ marginTop: 4, fontSize: 11, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
+              {docData.fileName}
+            </div>
+          )}
+          {!uploaded && (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#94a3b8" }}>{meta.formats} · max {MAX_MB} MB</div>
+          )}
         </div>
       </div>
 
