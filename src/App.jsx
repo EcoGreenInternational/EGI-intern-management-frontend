@@ -209,6 +209,7 @@ function AppContent() {
       <div style={{ 
         marginLeft: "var(--sidebar-w)", 
         flex: 1, 
+        minWidth: 0,
         display: "flex", 
         flexDirection: "column",
         minHeight: "100vh"

@@ -198,7 +198,7 @@ export function Sidebar({ page, setPage }) {
             </div>
             <div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 800, fontSize: 13, color: "#ffffff", letterSpacing: 0.8, lineHeight: 1.15 }}>
-                HOUSE OF CAMBRIDGE
+                ECO GREEN INTERNATIONAL
               </div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, color: "rgba(255,255,255,0.6)", letterSpacing: 1.5, textTransform: "uppercase", marginTop: 2 }}>
                 {user?.role === "intern" ? "INTERN PORTAL" : "STAFF PORTAL"}
