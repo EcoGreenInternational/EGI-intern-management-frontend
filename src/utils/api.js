@@ -1,5 +1,8 @@
 const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
+// Base URL for pages that build their own fetch calls (e.g. SocialPage).
+export const API_BASE = BASE.replace(/\/+$/, "");
+
 export const getToken   = ()  => localStorage.getItem("egi_token");
 export const setToken   = (t) => localStorage.setItem("egi_token", t);
 export const clearToken = ()  => localStorage.removeItem("egi_token");
@@ -193,4 +196,31 @@ export const renewalNotificationAPI = {
   getAll:      ()   => request("/renewal-notifications"),
   markRead:    (id) => request(`/renewal-notifications/${id}/read`, { method: "PATCH" }),
   markAllRead: ()   => request("/renewal-notifications/read-all",   { method: "PATCH" }),
+};
+
+// ── Diary (private, per user) ─────────────────────────────────────────────────
+export const diaryAPI = {
+  list:   ()         => request("/diary"),
+  create: (body)     => request("/diary",       { method: "POST",   body: JSON.stringify(body) }),
+  update: (id, body) => request(`/diary/${id}`, { method: "PUT",    body: JSON.stringify(body) }),
+  remove: (id)       => request(`/diary/${id}`, { method: "DELETE" }),
+
+  // Upload one file; resolves to { attachment: { name, size, type, url, publicId, resourceType } }
+  uploadAttachment: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`${BASE}/diary/attachments`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: formData,
+    }).then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || `Upload failed (${res.status})`);
+      return data;
+    });
+  },
+
+  // Throw away an upload that was never saved to an entry.
+  discardAttachment: ({ publicId, resourceType }) =>
+    request("/diary/attachments", { method: "DELETE", body: JSON.stringify({ publicId, resourceType }) }),
 };

@@ -1,6 +1,7 @@
 // src/pages/shared/SocialPage.jsx
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import { API_BASE, getToken } from "../../utils/api";
 import { Toast } from "../../components/shared/index.jsx";
 import {
   ClipboardIcon,
@@ -12,16 +13,34 @@ import {
   FolderIcon,
 } from "../../components/shared/Icons.jsx";
 
-const BASE             = "/api/social";
-const SOCIAL_PROJ_BASE = "/api/social-projects";
-const tok = () => localStorage.getItem("egi_token");
+// Use the configured API host (REACT_APP_API_URL). Relative "/api/..." URLs only
+// worked through the CRA dev proxy and broke when the API is hosted separately.
+const BASE             = `${API_BASE}/social`;
+const SOCIAL_PROJ_BASE = `${API_BASE}/social-projects`;
+
+// Always resolves to the API's JSON shape ({ success, ... }), even when the
+// server returns an error page or the network fails, so callers can show the message.
+const request = async (url, method = "GET", body) => {
+  const headers = { Authorization: `Bearer ${getToken()}` };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  try {
+    const res  = await fetch(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const data = await res.json().catch(() => null);
+    if (data && typeof data === "object") {
+      return res.ok ? data : { ...data, success: false, message: data.message || `Request failed (${res.status})` };
+    }
+    return { success: false, message: `Request failed (${res.status})` };
+  } catch (e) {
+    return { success: false, message: "Network error. Please check your connection." };
+  }
+};
 
 const http = {
-  get:   (url)       => fetch(url, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json()),
-  post:  (url, body) => fetch(url, { method: "POST",   headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok()}` }, body: JSON.stringify(body) }).then(r => r.json()),
-  put:   (url, body) => fetch(url, { method: "PUT",    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok()}` }, body: JSON.stringify(body) }).then(r => r.json()),
-  patch: (url, body) => fetch(url, { method: "PATCH",  headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok()}` }, body: JSON.stringify(body) }).then(r => r.json()),
-  del:   (url)       => fetch(url, { method: "DELETE", headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json()),
+  get:   (url)       => request(url),
+  post:  (url, body) => request(url, "POST",   body),
+  put:   (url, body) => request(url, "PUT",    body),
+  patch: (url, body) => request(url, "PATCH",  body),
+  del:   (url)       => request(url, "DELETE"),
 };
 
 const PLATFORMS = ["Instagram", "Facebook", "Twitter", "LinkedIn", "TikTok", "YouTube", "Other"];
