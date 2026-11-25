@@ -28,7 +28,7 @@ import SupervisorsPage from "./pages/supervisor/SupervisorsPage.jsx";
 import SupervisorSchedulePage from "./pages/supervisor/Schedule.jsx";
 
 // Shared Pages
-import SocialPage from "./pages/shared/SocialPage.jsx";
+import SocialPage from "./pages/social/SocialPage.jsx";
 import FilesPage from "./pages/shared/FilesPage.jsx";
 import ThirdPartyItemsPage from "./pages/supervisor/ThirdPartyItemsPage.jsx";
 
@@ -163,7 +163,7 @@ function AppContent() {
         case "profile":   return <ProfilePage />;
        
         case "schedule":  return <InternSchedulePage />;
-        case "social":    return <SocialPage />;
+        case "social":    return <SocialPage key="social" />;
         case "files":     return <FilesPage />;
         default:          return <div style={{ padding: 40 }}>Page not found</div>;
       }
@@ -180,8 +180,8 @@ function AppContent() {
         case "projects":    return <ProjectsPage />;
        
         case "schedule":    return <SupervisorSchedulePage />;
-        case "social":      return <SocialPage />;
-        case "content":     return <SocialPage view="calendar" />;
+        case "social":      return <SocialPage key="social" />;
+        case "content":     return <SocialPage key="content" view="calendar" />;
         case "files":       return <FilesPage />;
        case "renewals":
   return isSenior ? <ThirdPartyItemsPage /> : <div>Access Denied</div>;
@@ -214,7 +214,7 @@ function AppContent() {
         flexDirection: "column",
         minHeight: "100vh"
       }}>
-        <Topbar page={page} />
+        <Topbar page={page} setPage={setPage} />
 
         <main style={{ 
           flex: 1, 
