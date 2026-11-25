@@ -178,7 +178,7 @@ export default function ProfilePage() {
                 <p style={{ fontSize: 13, color: "var(--gray-500)", marginTop: 2 }}>{user.department}</p>
                 <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
                   <span className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    🏛️ House of Cambridge
+                    🌿 Eco Green International
                   </span>
                   <span className="chip">{user.role === "intern" ? "Intern Trainee" : roleLabel}</span>
                   {user.profilePicture && (

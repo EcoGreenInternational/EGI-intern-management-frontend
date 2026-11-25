@@ -5,7 +5,8 @@ import TaskModal from "../../components/shared/TaskModal.jsx";
 import SubTaskList from "../../components/shared/SubTaskList.jsx";
 import TaskTimer from "../../components/shared/TaskTimer.jsx";
 import WeeklyHoursCard from "../../components/shared/WeeklyHoursCard.jsx";
-import { computeStats, formatMinutes, statusSelectClass, getWeekKey } from "../../utils/helpers";
+import { computeStats, formatMinutes, statusSelectClass, getWeekKey, localISO, leaveDayCount, leaveDaysInRange, totalLeaveDays } from "../../utils/helpers";
+import TaskDate from "../../components/shared/TaskDate.jsx";
 import { useAuth } from "../../hooks/useAuth";
 import {
   CheckCircleIcon,
@@ -29,7 +30,7 @@ function OverdueRowStyles() {
 
 function overdueRowClass(t) {
   if (t.isLeave) return "leave-row";
-  if (t.status === "To Do" && t.date && t.date < new Date().toISOString().split("T")[0]) {
+  if (t.status === "To Do" && t.date && t.date < localISO()) {
     return "overdue-row";
   }
   return "";
@@ -74,7 +75,7 @@ function getUpcomingWeekends(count = 8) {
     const day = d.getDay();
     if (day === 0 || day === 6) {
       dates.push({
-        value: d.toISOString().split("T")[0],
+        value: localISO(d),
         label: d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }),
         isSat: day === 6,
       });
@@ -84,14 +85,14 @@ function getUpcomingWeekends(count = 8) {
   return dates;
 }
 
-function LeaveBadge({ reason }) {
+function LeaveBadge({ reason, days = 1 }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
       padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700,
       background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a",
     }}>
-      🌴 Leave Day{reason ? ` — ${reason}` : ""}
+      🌴 {days > 1 ? `Leave · ${days} days` : "Leave Day"}{reason ? ` — ${reason}` : ""}
     </span>
   );
 }
@@ -175,7 +176,7 @@ function weekKeyToRange(wk) {
   start.setDate(jan1Sunday.getDate() + (week - 1) * 7);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const fmt = d => d.toISOString().split("T")[0];
+  const fmt = d => localISO(d);
   return { start: fmt(start), end: fmt(end) };
 }
 
@@ -463,6 +464,9 @@ const getWeekBounds = () => {
     return { mon, sun };
   };
   const { mon, sun } = getWeekBounds();
+  // A leave range is one entry that can cover many days, so count days, not rows.
+  const leaveDayTotal    = totalLeaveDays(leaveDays);
+  const leaveDaysThisWeek = leaveDays.reduce((s, t) => s + leaveDaysInRange(t, localISO(mon), localISO(sun)), 0);
   const thisWeekTasks = nonLeaveTasks.filter(t => {
     if (!t.date) return false;
     const d = new Date(t.date);
@@ -568,7 +572,7 @@ const getWeekBounds = () => {
             </div>
             <span className="egi-stat-arrow">→</span>
           </div>
-          <div className="egi-stat-value">{leaveDays.length}</div>
+          <div className="egi-stat-value">{leaveDayTotal}</div>
           <div className="egi-stat-title">Leave Days</div>
           <div className="egi-stat-subtitle">Approved</div>
           <svg className="egi-stat-wave-bg" viewBox="0 0 100 100" fill="#ef4444">
@@ -580,9 +584,9 @@ const getWeekBounds = () => {
       <div className="grid-2 mb-24">
         <WeeklyHoursCard tasks={thisWeekTasks} noTarget />
       </div>
-      {leaveDays.filter(t => { const d = new Date(t.date); return d >= mon && d <= sun; }).length > 0 && (
+      {leaveDaysThisWeek > 0 && (
         <div className="alert alert-info mb-20">
-          🌴 You have <strong>{leaveDays.filter(t => { const d = new Date(t.date); return d >= mon && d <= sun; }).length} leave day(s)</strong> this week.
+          🌴 You have <strong>{leaveDaysThisWeek} leave day(s)</strong> this week.
         </div>
       )}
       <div className="card">
@@ -601,11 +605,11 @@ const getWeekBounds = () => {
               <tbody>
                 {tasks.slice(0, 8).map(t => (
                   <tr key={t._id || t.id} className={overdueRowClass(t)}>
-                    <td className="text-sm text-gray">{t.date}</td>
+                    <td className="text-sm text-gray"><TaskDate task={t} /></td>
                     <td>{t.isLeave ? "—" : <span className="tag">{t.project}</span>}</td>
                     {/* FIX 1: clickable links */}
                     <td className="text-sm" style={{ maxWidth: 220 }}>
-                      {t.isLeave ? <LeaveBadge reason={t.leaveReason} /> : <TextWithLinks text={t.task} />}
+                      {t.isLeave ? <LeaveBadge reason={t.leaveReason} days={leaveDayCount(t)} /> : <TextWithLinks text={t.task} />}
                     </td>
                     <td>{t.isLeave ? "—" : <StatusBadge status={t.status} />}</td>
                     <td>
@@ -696,17 +700,6 @@ export function MyTasksPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [filterMode, filterDate, filterStartDate, filterEndDate, filterWeek, status, search]);
 
-  const getDatesInRange = (startDateStr, endDateStr) => {
-    const dates = [];
-    let curr = new Date(startDateStr);
-    const end = new Date(endDateStr);
-    while (curr <= end) {
-      dates.push(curr.toISOString().split("T")[0]);
-      curr.setDate(curr.getDate() + 1);
-    }
-    return dates;
-  };
-
   const handleSave = async (form) => {
     if (!user) return;
     setSaving(true);
@@ -716,25 +709,20 @@ export function MyTasksPage() {
         setTasks(ts => ts.map(t => (t._id || t.id) === (editTask._id || editTask.id) ? d.task : t));
         setToast({ msg: form.isLeave ? "Leave day updated!" : "Task updated!", type: "success" });
       } else {
-        if (form.isLeave && form.isDateRange && form.endDate && form.endDate > form.date) {
-          const rangeDates = getDatesInRange(form.date, form.endDate);
-          await Promise.all(rangeDates.map(date =>
-            taskAPI.create({ ...form, date, assignedTo: user._id, isLeave: true })
-          ));
-          setToast({ msg: `${rangeDates.length} leave days created!`, type: "success" });
-        } else {
-          await taskAPI.create({ ...form, assignedTo: user._id });
-          setToast({ msg: form.isLeave ? "Leave day marked!" : "Task created!", type: "success" });
-        }
-        if (form.isLeave && weekendDates.length > 0) {
+        // A date range is saved as ONE leave entry (leaveEndDate comes from TaskModal).
+        await taskAPI.create({ ...form, assignedTo: user._id });
+        const days = leaveDayCount(form);
+        setToast({ msg: form.isLeave ? (days > 1 ? `Leave marked (${days} days)!` : "Leave day marked!") : "Task created!", type: "success" });
+        const extraWeekends = form.isLeave ? weekendDates.filter(d => d < form.date || d > (form.leaveEndDate || form.date)) : [];
+        if (extraWeekends.length > 0) {
           await Promise.all(
-            weekendDates.map(date =>
-              taskAPI.create({ ...form, date, assignedTo: user._id, isLeave: true })
+            extraWeekends.map(date =>
+              taskAPI.create({ ...form, date, leaveEndDate: "", assignedTo: user._id, isLeave: true })
             )
           );
-          setToast({ msg: `Leave + ${weekendDates.length} weekend day(s) saved!`, type: "success" });
-          setWeekendDates([]);
+          setToast({ msg: `Leave + ${extraWeekends.length} weekend day(s) saved!`, type: "success" });
         }
+        setWeekendDates([]);
         load();
       }
       setShowModal(false); setEditTask(null);
@@ -782,7 +770,7 @@ export function MyTasksPage() {
     setTasks(ts => ts.map(t => (t._id || t.id) === (updated._id || updated.id) ? updated : t));
   };
 
-  const leaveDays = tasks.filter(t => t.isLeave).length;
+  const leaveDays = totalLeaveDays(tasks.filter(t => t.isLeave));
 
   if (!user) return <div style={{ padding: 60, textAlign: "center" }}><div className="spinner" /></div>;
 
@@ -857,13 +845,13 @@ export function MyTasksPage() {
               <tbody>
                 {tasks.map(t => (
                   <tr key={t._id || t.id} className={overdueRowClass(t)}>
-                    <td className="text-sm text-gray">{t.date}</td>
+                    <td className="text-sm text-gray"><TaskDate task={t} /></td>
                     <td>{t.isLeave ? "—" : <span className="tag">{t.project}</span>}</td>
                     <td className="text-sm">{t.assignedBy}</td>
                     {/* FIX 1: clickable links in task description */}
                     <td className="text-sm" style={{ maxWidth: 220 }}>
                       {t.isLeave
-                        ? <LeaveBadge reason={t.leaveReason} />
+                        ? <LeaveBadge reason={t.leaveReason} days={leaveDayCount(t)} />
                         : <><div style={{ marginBottom: 4 }}><TextWithLinks text={t.task} /></div><SubTaskList task={t} currentUser={user} onTaskUpdated={handleTaskUpdated} /></>
                       }
                     </td>

@@ -1,5 +1,8 @@
 const BASE = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
+// Base URL for pages that build their own fetch calls (e.g. SocialPage).
+export const API_BASE = BASE.replace(/\/+$/, "");
+
 export const getToken   = ()  => localStorage.getItem("egi_token");
 export const setToken   = (t) => localStorage.setItem("egi_token", t);
 export const clearToken = ()  => localStorage.removeItem("egi_token");
@@ -10,6 +13,18 @@ export function resolveImageUrl(p) {
   if (!p) return null;
   if (/^https?:\/\//i.test(p)) return p;
   return `${IMAGE_BASE}${p.startsWith("/") ? "" : "/"}${p}`;
+}
+
+// Parse a JSON response; error pages (e.g. a proxy's HTML "413 Request Entity
+// Too Large") become a readable Error instead of "Unexpected token <".
+async function readJson(res, fallbackMessage) {
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = data?.message
+      || (res.status === 413 ? "File is too large." : `${fallbackMessage} (error ${res.status}).`);
+    throw new Error(msg);
+  }
+  return data || {};
 }
 
 async function request(path, options = {}) {
@@ -72,11 +87,8 @@ export const userAPI = {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
-    }).then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
-      return data;
-    });
+    }).then(res => readJson(res, "Upload failed"))
+      .catch(err => { throw new Error(err.message === "Failed to fetch" ? "Could not reach the server. Check your connection." : err.message); });
   },
   deleteProfilePicture: (id) => request(`/users/${id}/profile-picture`, { method: "DELETE" }),
 
@@ -88,11 +100,8 @@ export const userAPI = {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
-    }).then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
-      return data;
-    });
+    }).then(res => readJson(res, "Upload failed"))
+      .catch(err => { throw new Error(err.message === "Failed to fetch" ? "Could not reach the server. Check your connection." : err.message); });
   },
   deleteDocument: (id, docType) => request(`/users/${id}/documents/${docType}`, { method: "DELETE" }),
 };
@@ -193,4 +202,31 @@ export const renewalNotificationAPI = {
   getAll:      ()   => request("/renewal-notifications"),
   markRead:    (id) => request(`/renewal-notifications/${id}/read`, { method: "PATCH" }),
   markAllRead: ()   => request("/renewal-notifications/read-all",   { method: "PATCH" }),
+};
+
+// ── Diary (private, per user) ─────────────────────────────────────────────────
+export const diaryAPI = {
+  list:   ()         => request("/diary"),
+  create: (body)     => request("/diary",       { method: "POST",   body: JSON.stringify(body) }),
+  update: (id, body) => request(`/diary/${id}`, { method: "PUT",    body: JSON.stringify(body) }),
+  remove: (id)       => request(`/diary/${id}`, { method: "DELETE" }),
+
+  // Upload one file; resolves to { attachment: { name, size, type, url, publicId, resourceType } }
+  uploadAttachment: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`${BASE}/diary/attachments`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: formData,
+    }).then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || `Upload failed (${res.status})`);
+      return data;
+    });
+  },
+
+  // Throw away an upload that was never saved to an entry.
+  discardAttachment: ({ publicId, resourceType }) =>
+    request("/diary/attachments", { method: "DELETE", body: JSON.stringify({ publicId, resourceType }) }),
 };

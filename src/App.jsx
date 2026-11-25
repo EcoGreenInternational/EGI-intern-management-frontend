@@ -28,7 +28,7 @@ import SupervisorsPage from "./pages/supervisor/SupervisorsPage.jsx";
 import SupervisorSchedulePage from "./pages/supervisor/Schedule.jsx";
 
 // Shared Pages
-import SocialPage from "./pages/shared/SocialPage.jsx";
+import SocialPage from "./pages/social/SocialPage.jsx";
 import FilesPage from "./pages/shared/FilesPage.jsx";
 import ThirdPartyItemsPage from "./pages/supervisor/ThirdPartyItemsPage.jsx";
 
@@ -39,7 +39,7 @@ function LoginChoose({ setView }) {
       {/* Modern Top Header */}
       <header className="egi-landing-header">
         <div className="egi-landing-brand">
-          <img src={companyLogo} alt="House of Cambridge Logo" className="egi-landing-brand-logo" />
+          <img src={companyLogo} alt="Eco Green International logo" className="egi-landing-brand-logo" />
         </div>
         <div className="egi-landing-tagline">
           Excellence &nbsp;|&nbsp; Professional Management
@@ -50,7 +50,7 @@ function LoginChoose({ setView }) {
       <main className="egi-landing-content">
         <div className="egi-hero-title-box">
           <div className="egi-hero-accent-bar" />
-          <h1 className="egi-hero-heading">House of Cambridge</h1>
+          <h1 className="egi-hero-heading">Eco Green International</h1>
           <h2 className="egi-hero-subtitle">Staff Management Portal</h2>
           <p className="egi-hero-desc">
             Manage staff activities, tasks, work logs and performance.
@@ -113,7 +113,7 @@ function LoginChoose({ setView }) {
       <footer className="egi-landing-footer">
         <div className="egi-landing-footer-left" />
         <div className="egi-landing-footer-center">
-          © 2026 House of Cambridge Pvt Ltd
+          © {new Date().getFullYear()} Eco Green International
         </div>
         <div className="egi-landing-footer-right">
           <span>Privacy Policy</span>
@@ -163,7 +163,7 @@ function AppContent() {
         case "profile":   return <ProfilePage />;
        
         case "schedule":  return <InternSchedulePage />;
-        case "social":    return <SocialPage />;
+        case "social":    return <SocialPage key="social" />;
         case "files":     return <FilesPage />;
         default:          return <div style={{ padding: 40 }}>Page not found</div>;
       }
@@ -180,8 +180,8 @@ function AppContent() {
         case "projects":    return <ProjectsPage />;
        
         case "schedule":    return <SupervisorSchedulePage />;
-        case "social":      return <SocialPage />;
-        case "content":     return <SocialPage view="calendar" />;
+        case "social":      return <SocialPage key="social" />;
+        case "content":     return <SocialPage key="content" view="calendar" />;
         case "files":       return <FilesPage />;
        case "renewals":
   return isSenior ? <ThirdPartyItemsPage /> : <div>Access Denied</div>;
@@ -209,11 +209,12 @@ function AppContent() {
       <div style={{ 
         marginLeft: "var(--sidebar-w)", 
         flex: 1, 
+        minWidth: 0,
         display: "flex", 
         flexDirection: "column",
         minHeight: "100vh"
       }}>
-        <Topbar page={page} />
+        <Topbar page={page} setPage={setPage} />
 
         <main style={{ 
           flex: 1, 

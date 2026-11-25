@@ -1,4 +1,9 @@
-export const todayISO = () => new Date().toISOString().split("T")[0];
+// Local calendar date "YYYY-MM-DD". (toISOString() is UTC: in Sri Lanka it gives
+// yesterday's date before 05:30 and shifts week ranges back by a day.)
+export const localISO = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export const todayISO = () => localISO();
 
 export const formatMinutes = (mins) => {
   const n = parseInt(mins) || 0;
@@ -56,8 +61,7 @@ export const weekKeyToRange = (wk) => {
   start.setDate(jan1Sunday.getDate() + (week - 1) * 7);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const fmt = d => d.toISOString().split("T")[0];
-  return { start: fmt(start), end: fmt(end) };
+  return { start: localISO(start), end: localISO(end) };
 };
 
 export const weeklyMinsFromTasks = (tasks = []) => {
@@ -66,3 +70,26 @@ export const weeklyMinsFromTasks = (tasks = []) => {
     .filter(t => t.date && getWeekKey(new Date(t.date)) === wk)
     .reduce((s, t) => s + (parseInt(t.totalMinutes) || 0), 0);
 };
+// ── Leave ranges ─────────────────────────────────────────────────────────────
+// A multi-day leave is ONE task: date = first day, leaveEndDate = last day
+// ("" for a single day).
+const dayDiff = (a, b) =>
+  Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+
+export const isLeaveRange = (t) => !!(t?.isLeave && t.leaveEndDate && t.leaveEndDate > t.date);
+
+export const leaveEndOf = (t) => (isLeaveRange(t) ? t.leaveEndDate : t?.date);
+
+// Calendar days a leave entry covers (inclusive); 0 for normal tasks.
+export const leaveDayCount = (t) => (t?.isLeave && t.date ? dayDiff(t.date, leaveEndOf(t)) + 1 : 0);
+
+// Leave days of an entry that fall inside [start, end] ("YYYY-MM-DD", inclusive).
+export const leaveDaysInRange = (t, start, end) => {
+  if (!t?.isLeave || !t.date) return 0;
+  const from = t.date > start ? t.date : start;
+  const last = leaveEndOf(t);
+  const to   = last < end ? last : end;
+  return to < from ? 0 : dayDiff(from, to) + 1;
+};
+
+export const totalLeaveDays = (tasks = []) => tasks.reduce((s, t) => s + leaveDayCount(t), 0);
